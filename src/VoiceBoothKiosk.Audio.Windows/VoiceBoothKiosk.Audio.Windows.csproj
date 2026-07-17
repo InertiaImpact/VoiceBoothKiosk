@@ -1,0 +1,25 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\VoiceBoothKiosk.Domain\VoiceBoothKiosk.Domain.csproj" />
+    <ProjectReference Include="..\VoiceBoothKiosk.Application\VoiceBoothKiosk.Application.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NAudio" Version="2.3.0" />
+  </ItemGroup>
+
+  <!-- Local hardware/smoke artifacts must never be compiled into the library. -->
+  <ItemGroup>
+    <Compile Remove="Smoke\**\*.cs" />
+    <EmbeddedResource Remove="Smoke\**\*" />
+    <None Remove="Smoke\**\*" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

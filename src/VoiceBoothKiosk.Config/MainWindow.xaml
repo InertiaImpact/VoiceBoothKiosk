@@ -1,0 +1,285 @@
+<Window x:Class="VoiceBoothKiosk.Config.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:VoiceBoothKiosk.Config.Controls"
+        Title="Voice Booth Configuration"
+        Width="1280" Height="820" MinWidth="980" MinHeight="680"
+        WindowStartupLocation="CenterScreen">
+    <DockPanel>
+        <Border DockPanel.Dock="Top" Background="#182332" Padding="26,18">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                    <TextBlock Text="VOICE BOOTH" Foreground="#92BFF8" FontSize="12" FontWeight="Bold" />
+                    <TextBlock Text="Recorder settings" Foreground="White" FontSize="26" FontWeight="SemiBold" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <TextBlock Text="Changes apply to this kiosk" Foreground="#D9E3EE" HorizontalAlignment="Right" />
+                    <TextBlock x:Name="ConfigPathText" Foreground="#91A4B8" FontSize="11" MaxWidth="560" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Border DockPanel.Dock="Bottom" Background="White" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0" Padding="17,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock x:Name="StatusText" Text="Loading settings…" FontWeight="SemiBold" />
+                    <TextBlock x:Name="StatusDetailText" Foreground="{StaticResource MutedBrush}" FontSize="11" TextWrapping="Wrap" MaxWidth="760" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <Button Content="Restore defaults" Click="RestoreDefaults_Click" />
+                    <Button Content="Reload" Click="Reload_Click" />
+                    <Button x:Name="ImportPresetButton" Content="Import preset…" Click="ImportPreset_Click" />
+                    <Button x:Name="ExportPresetButton" Content="Export preset…" Click="ExportPreset_Click" />
+                    <Button Content="Validate" Click="Validate_Click" />
+                    <Button x:Name="SaveButton" Content="Save and apply" Style="{StaticResource PrimaryButton}" Click="Save_Click" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <TabControl Margin="18">
+            <TabItem Header="Branding">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <Grid Margin="24">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="24" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="Identity" Style="{StaticResource SectionTitle}" />
+                            <TextBlock Text="Application title" Style="{StaticResource FieldLabel}" />
+                            <TextBox Text="{Binding ApplicationTitle, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Text="Subtitle" Style="{StaticResource FieldLabel}" />
+                            <TextBox Text="{Binding ApplicationSubtitle, UpdateSourceTrigger=PropertyChanged}"
+                                     MaxLength="160"
+                                     AutomationProperties.Name="Application subtitle" />
+                            <TextBlock Text="Logo file" Style="{StaticResource FieldLabel}" />
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                <TextBox Text="{Binding LogoPath, UpdateSourceTrigger=PropertyChanged}" />
+                                <Button Grid.Column="1" Content="Browse…" Margin="8,4,0,12" Click="BrowseLogo_Click" />
+                            </Grid>
+                            <TextBlock Text="The logo stays on the kiosk computer. SVG is not loaded as executable XAML." Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="Color palette" Style="{StaticResource SectionTitle}" />
+                            <TextBlock Text="Primary color (#RRGGBB)" Style="{StaticResource FieldLabel}" />
+                            <controls:ColorPickerField FieldName="Primary color hexadecimal value"
+                                                       SelectedColor="{Binding PrimaryColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Text="Record / accent color" Style="{StaticResource FieldLabel}" />
+                            <controls:ColorPickerField FieldName="Record and accent color hexadecimal value"
+                                                       SelectedColor="{Binding AccentColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Text="Background color" Style="{StaticResource FieldLabel}" />
+                            <controls:ColorPickerField FieldName="Background color hexadecimal value"
+                                                       SelectedColor="{Binding BackgroundColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                            <Border Height="70" Margin="0,8" CornerRadius="6" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Background="#F8FAFC">
+                                <TextBlock Text="Colors are validated when you save." VerticalAlignment="Center" HorizontalAlignment="Center" Foreground="{StaticResource MutedBrush}" />
+                            </Border>
+                        </StackPanel>
+                    </Grid>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="Instructions">
+                <Grid Margin="22">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <StackPanel>
+                        <TextBlock Text="Reusable content blocks" Style="{StaticResource SectionTitle}" />
+                        <TextBlock Text="Built-in slots include welcome.instructions, welcome.session-name-help, privacy.notice, recording.instructions, devices.help, and session.end. Add any number of extra blocks using welcome.extra.*, recording.extra.*, devices.extra.*, or session.extra.*. Text is plain and safe; no XAML, HTML, scripts, or remote content is accepted."
+                                   Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,0,0,14" />
+                    </StackPanel>
+                    <DataGrid Grid.Row="1" ItemsSource="{Binding ContentBlocks}" SelectedItem="{Binding SelectedContentBlock}"
+                              AutoGenerateColumns="False" CanUserAddRows="False" HeadersVisibility="Column" RowHeaderWidth="0"
+                              GridLinesVisibility="Horizontal" AlternatingRowBackground="#F5F8FB">
+                        <DataGrid.Columns>
+                            <DataGridCheckBoxColumn Header="Show" Binding="{Binding IsVisible}" Width="65" />
+                            <DataGridTextColumn Header="Screen / region ID" Binding="{Binding Id, UpdateSourceTrigger=PropertyChanged}" Width="220" />
+                            <DataGridTextColumn Header="Style" Binding="{Binding Style, UpdateSourceTrigger=PropertyChanged}" Width="110" />
+                            <DataGridTemplateColumn Header="Instruction text" Width="*">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate><TextBlock Text="{Binding Text}" TextWrapping="Wrap" Margin="4" /></DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                                <DataGridTemplateColumn.CellEditingTemplate>
+                                    <DataTemplate><TextBox Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="58" Margin="2" /></DataTemplate>
+                                </DataGridTemplateColumn.CellEditingTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+                        <Button Content="Add block" Click="AddContentBlock_Click" />
+                        <Button Content="Remove selected" Click="RemoveContentBlock_Click" />
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="Kiosk &amp; layout">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <Grid Margin="24">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="24"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="Kiosk window policy" Style="{StaticResource SectionTitle}" />
+                            <CheckBox Content="Run the public recorder full screen" IsChecked="{Binding FullScreen}" />
+                            <CheckBox Content="Keep the recorder above other windows" IsChecked="{Binding AlwaysOnTop}" />
+                            <CheckBox Content="Show a four-second hold-to-exit X" IsChecked="{Binding AllowClose}" />
+                            <CheckBox Content="Hide the cursor after inactivity" IsChecked="{Binding HideCursorWhenIdle}" />
+                            <TextBlock Margin="0,14,0,4" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap"
+                                       Text="Windows Shell Launcher, AppLocker, and keyboard policy provide the actual kiosk security boundary. These options control only recorder behavior." />
+
+                            <TextBlock Text="Accessibility" Style="{StaticResource SectionTitle}" Margin="0,24,0,12" />
+                            <CheckBox Content="High contrast theme" IsChecked="{Binding HighContrast}" />
+                            <CheckBox Content="Reduce motion" IsChecked="{Binding ReducedMotion}" />
+                            <CheckBox Content="Audible status cues" IsChecked="{Binding AudibleStatusCues}" />
+                            <TextBlock Text="Text scale (0.75–2.0)" Style="{StaticResource FieldLabel}" Margin="0,10,0,0" />
+                            <TextBox Text="{Binding TextScale}" Width="150" HorizontalAlignment="Left" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="Workspace layout" Style="{StaticResource SectionTitle}" />
+                            <TextBlock Text="Clip rail position" Style="{StaticResource FieldLabel}" />
+                            <ComboBox ItemsSource="{Binding ClipRailChoices}" SelectedItem="{Binding ClipRailPosition}" />
+                            <TextBlock Text="Control size" Style="{StaticResource FieldLabel}" />
+                            <ComboBox ItemsSource="{Binding ControlSizeChoices}" SelectedItem="{Binding ControlSize}" />
+                            <TextBlock Text="Waveform color" Style="{StaticResource FieldLabel}" Margin="0,10,0,0" />
+                            <controls:ColorPickerField FieldName="Waveform color hexadecimal value"
+                                                       SelectedColor="{Binding WaveformColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Text="Waveform background" Style="{StaticResource FieldLabel}" />
+                            <controls:ColorPickerField FieldName="Waveform background color hexadecimal value"
+                                                       SelectedColor="{Binding WaveformBackgroundColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+                    </Grid>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="Audio &amp; devices">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <Grid Margin="24">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="24"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="Recording and export" Style="{StaticResource SectionTitle}" />
+                            <TextBlock Text="Sample rate" Style="{StaticResource FieldLabel}" />
+                            <ComboBox ItemsSource="{Binding SampleRates}" SelectedItem="{Binding SampleRate}" />
+                            <TextBlock Text="Channels (version 1 uses mono)" Style="{StaticResource FieldLabel}" />
+                            <ComboBox ItemsSource="{Binding ChannelChoices}" SelectedItem="{Binding Channels}" />
+                            <TextBlock Text="MP3 bitrate (kbps)" Style="{StaticResource FieldLabel}" />
+                            <ComboBox ItemsSource="{Binding BitrateChoices}" SelectedItem="{Binding Mp3BitrateKbps}" />
+                            <CheckBox Content="Patrons may select input/output devices while idle" IsChecked="{Binding AllowPatronDeviceSelection}" />
+                            <CheckBox Content="Patrons may change playback volume" IsChecked="{Binding AllowOutputVolumeControl}" />
+                            <Grid Margin="0,12,0,0">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="18"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="Low-level warning (dBFS)" Style="{StaticResource FieldLabel}" />
+                                    <TextBox Text="{Binding LowLevelThresholdDb}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="Clipping warning (dBFS)" Style="{StaticResource FieldLabel}" />
+                                    <TextBox Text="{Binding ClippingThresholdDb}" />
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="Preferred endpoints" Style="{StaticResource SectionTitle}" />
+                            <TextBlock Text="Input device" FontSize="16" FontWeight="SemiBold" />
+                            <CheckBox Content="Use Windows default input" IsChecked="{Binding UseDefaultInput}" />
+                            <TextBlock Text="Endpoint ID" Style="{StaticResource FieldLabel}" Margin="0,7,0,0" />
+                            <TextBox Text="{Binding InputDeviceId, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Text="Friendly-name fallback" Style="{StaticResource FieldLabel}" />
+                            <TextBox Text="{Binding InputDeviceName, UpdateSourceTrigger=PropertyChanged}" />
+                            <Separator Margin="0,12" />
+                            <TextBlock Text="Output device" FontSize="16" FontWeight="SemiBold" />
+                            <CheckBox Content="Use Windows default output" IsChecked="{Binding UseDefaultOutput}" />
+                            <TextBlock Text="Endpoint ID" Style="{StaticResource FieldLabel}" Margin="0,7,0,0" />
+                            <TextBox Text="{Binding OutputDeviceId, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Text="Friendly-name fallback" Style="{StaticResource FieldLabel}" />
+                            <TextBox Text="{Binding OutputDeviceName, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Text="Endpoint IDs are stable Windows device identifiers—not list positions. Leave them blank only when Windows Default is selected."
+                                       Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Grid>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="Sessions &amp; recovery">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <Grid Margin="24">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="24"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="Session behavior" Style="{StaticResource SectionTitle}" />
+                            <TextBlock Text="Default clip name format" Style="{StaticResource FieldLabel}" />
+                            <TextBox Text="{Binding DefaultClipNameFormat, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Text="Use {0} for the stable clip number, for example Clip {0}." Foreground="{StaticResource MutedBrush}" Margin="0,-8,0,12" />
+                            <TextBlock Text="Inactivity warning (minutes; 0 disables)" Style="{StaticResource FieldLabel}" />
+                            <TextBox Text="{Binding InactivityWarningMinutes}" />
+                            <TextBlock Text="Success screen duration (seconds; 0 requires Done)" Style="{StaticResource FieldLabel}" />
+                            <TextBox Text="{Binding SuccessScreenSeconds}" />
+                            <CheckBox Content="Confirm New Take before moving audio to recovery trash" IsChecked="{Binding ConfirmNewTake}" />
+                            <CheckBox Content="Confirm clip deletion" IsChecked="{Binding ConfirmDeleteClip}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="Recovery retention" Style="{StaticResource SectionTitle}" />
+                            <TextBlock Text="Alert operators after (days)" Style="{StaticResource FieldLabel}" />
+                            <TextBox Text="{Binding RecoveryAlertDays}" />
+                            <TextBlock Text="Keep successfully exported recovery data (hours)" Style="{StaticResource FieldLabel}" />
+                            <TextBox Text="{Binding SuccessfulRecoveryRetentionHours}" />
+                            <Border Background="#EAF3FF" BorderBrush="#A9C8EE" BorderThickness="1" CornerRadius="6" Padding="14" Margin="0,10,0,20">
+                                <TextBlock Text="Interrupted sessions are never silently purged as the only recording copy. These values control warnings and post-export cleanup only."
+                                           TextWrapping="Wrap" Foreground="#254F7D" />
+                            </Border>
+
+                            <TextBlock Text="Diagnostics" Style="{StaticResource SectionTitle}" />
+                            <TextBlock Text="Log level" Style="{StaticResource FieldLabel}" />
+                            <ComboBox ItemsSource="{Binding LogLevelChoices}" SelectedItem="{Binding LogLevel}" />
+                            <TextBlock Text="Log retention (days)" Style="{StaticResource FieldLabel}" />
+                            <TextBox Text="{Binding LogRetentionDays}" />
+                            <CheckBox Content="Run audio hardware self-test at startup" IsChecked="{Binding RunHardwareSelfTestOnStartup}" />
+                        </StackPanel>
+                    </Grid>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="Destinations">
+                <Grid Margin="22">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <StackPanel>
+                        <TextBlock Text="Export destinations" Style="{StaticResource SectionTitle}" />
+                        <TextBlock Text="Add or select a row, browse to its save folder, check that it is writable, and set the usual destination as default. The recorder can export only to enabled roots in this list. Paths must be absolute local or UNC paths."
+                                   Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,0,0,14" />
+                    </StackPanel>
+                    <DataGrid Grid.Row="1" ItemsSource="{Binding Destinations}" SelectedItem="{Binding SelectedDestination}"
+                              AutoGenerateColumns="False" CanUserAddRows="False" RowHeaderWidth="0" GridLinesVisibility="Horizontal"
+                              AlternatingRowBackground="#F5F8FB">
+                        <DataGrid.Columns>
+                            <DataGridCheckBoxColumn Header="Enabled" Binding="{Binding IsEnabled}" Width="70" />
+                            <DataGridCheckBoxColumn Header="Default" Binding="{Binding IsDefault}" IsReadOnly="True" Width="70" />
+                            <DataGridTextColumn Header="Label" Binding="{Binding Label, UpdateSourceTrigger=PropertyChanged}" Width="190" />
+                            <DataGridTextColumn Header="Stable ID" Binding="{Binding Id, UpdateSourceTrigger=PropertyChanged}" Width="170" />
+                            <DataGridTextColumn Header="Root path" Binding="{Binding RootPath, UpdateSourceTrigger=PropertyChanged}" Width="*" />
+                            <DataGridTextColumn Header="Min free MB" Binding="{Binding MinimumFreeMegabytes}" Width="100" />
+                            <DataGridCheckBoxColumn Header="Fixed root" Binding="{Binding IsLocked}" Width="80" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <Grid Grid.Row="2" Margin="0,10,0,0">
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                            <Button Content="Add" Click="AddDestination_Click" />
+                            <Button Content="Browse path…" Click="BrowseDestination_Click" />
+                            <Button Content="Set default" Click="SetDefaultDestination_Click" />
+                            <Button Content="Check selected" Click="CheckDestination_Click" />
+                            <Button Content="Remove" Click="RemoveDestination_Click" />
+                        </StackPanel>
+                    </Grid>
+                </Grid>
+            </TabItem>
+        </TabControl>
+    </DockPanel>
+</Window>

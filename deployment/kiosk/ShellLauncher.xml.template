@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Shell Launcher v2 policy template. Replace placeholders before applying through
+  Intune/MDM/provisioning. The application path must be the real installed EXE,
+  not a launcher process that exits after starting another executable.
+-->
+<ShellLauncherConfiguration
+    xmlns="http://schemas.microsoft.com/ShellLauncher/2018/Configuration"
+    xmlns:V2="http://schemas.microsoft.com/ShellLauncher/2019/Configuration">
+  <Profiles>
+    <DefaultProfile>
+      <Shell Shell="%SystemRoot%\explorer.exe" />
+    </DefaultProfile>
+    <Profile Id="{59E3315F-8084-48BD-AD46-3A37B18D75D7}">
+      <Shell Shell="__RECORDER_EXE_PATH__" V2:AppType="Desktop" V2:AllAppsFullScreen="true">
+        <ReturnCodeActions>
+          <ReturnCodeAction ReturnCode="0" Action="RestartShell" />
+          <ReturnCodeAction ReturnCode="1" Action="RestartShell" />
+          <ReturnCodeAction ReturnCode="2" Action="RestartShell" />
+        </ReturnCodeActions>
+        <DefaultAction Action="RestartShell" />
+      </Shell>
+    </Profile>
+  </Profiles>
+  <Configs>
+    <Config>
+      <Account Name="__KIOSK_ACCOUNT_NAME__" />
+      <Profile Id="{59E3315F-8084-48BD-AD46-3A37B18D75D7}" />
+    </Config>
+  </Configs>
+</ShellLauncherConfiguration>

@@ -1,0 +1,158 @@
+<UserControl x:Class="VoiceBoothKiosk.Config.Controls.ColorPickerField"
+             x:Name="Root"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:automation="clr-namespace:System.Windows.Automation;assembly=PresentationCore"
+             Focusable="False">
+    <UserControl.Resources>
+        <Style x:Key="PresetSwatchButton" TargetType="Button">
+            <Setter Property="Width" Value="30" />
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Margin" Value="3" />
+            <Setter Property="Padding" Value="2" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="BorderBrush" Value="#667085" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+
+        <TextBox x:Name="HexTextBox"
+                 Text="{Binding SelectedColor, ElementName=Root, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                 MaxLength="9"
+                 SpellCheck.IsEnabled="False"
+                 automation:AutomationProperties.Name="{Binding FieldName, ElementName=Root}"
+                 ToolTip="Enter a color as #RRGGBB." />
+
+        <Button x:Name="SwatchButton"
+                Grid.Column="1"
+                Width="44"
+                Height="36"
+                MinHeight="0"
+                Margin="8,4,0,12"
+                Padding="4"
+                HorizontalContentAlignment="Stretch"
+                VerticalContentAlignment="Stretch"
+                Background="White"
+                BorderBrush="{Binding CurrentBorderBrush, ElementName=Root}"
+                BorderThickness="2"
+                Click="SwatchButton_Click"
+                ToolTip="{Binding CurrentColorDescription, ElementName=Root}"
+                automation:AutomationProperties.Name="Open visual color picker">
+            <Border Background="{Binding CurrentBrush, ElementName=Root}"
+                    BorderBrush="#667085"
+                    BorderThickness="1"
+                    CornerRadius="3" />
+        </Button>
+
+        <Popup x:Name="PickerPopup"
+               Placement="Bottom"
+               PlacementTarget="{Binding ElementName=SwatchButton}"
+               HorizontalOffset="-294"
+               AllowsTransparency="True"
+               PopupAnimation="Fade"
+               StaysOpen="False"
+               Opened="PickerPopup_Opened">
+            <Border Width="340"
+                    Margin="8"
+                    Padding="16"
+                    Background="White"
+                    BorderBrush="#98A2B3"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    PreviewKeyDown="PickerPanel_PreviewKeyDown">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="14" Opacity="0.24" ShadowDepth="3" />
+                </Border.Effect>
+                <StackPanel>
+                    <TextBlock Text="Choose a color" FontSize="16" FontWeight="SemiBold" />
+                    <TextBlock Text="Presets" Margin="0,10,0,3" Foreground="#475467" FontWeight="SemiBold" />
+
+                    <UniformGrid Columns="8" Margin="-3,0,0,8">
+                        <Button Style="{StaticResource PresetSwatchButton}" Background="#FFFFFF" Tag="#FFFFFF" ToolTip="White" automation:AutomationProperties.Name="White" Click="PresetSwatch_Click" />
+                        <Button Style="{StaticResource PresetSwatchButton}" Background="#D0D5DD" Tag="#D0D5DD" ToolTip="Light gray" automation:AutomationProperties.Name="Light gray" Click="PresetSwatch_Click" />
+                        <Button Style="{StaticResource PresetSwatchButton}" Background="#667085" Tag="#667085" ToolTip="Gray" automation:AutomationProperties.Name="Gray" Click="PresetSwatch_Click" />
+                        <Button Style="{StaticResource PresetSwatchButton}" Background="#101828" Tag="#101828" ToolTip="Near black" automation:AutomationProperties.Name="Near black" Click="PresetSwatch_Click" />
+                        <Button Style="{StaticResource PresetSwatchButton}" Background="#F0445A" Tag="#F0445A" ToolTip="Red" automation:AutomationProperties.Name="Red" Click="PresetSwatch_Click" />
+                        <Button Style="{StaticResource PresetSwatchButton}" Background="#F79009" Tag="#F79009" ToolTip="Orange" automation:AutomationProperties.Name="Orange" Click="PresetSwatch_Click" />
+                        <Button Style="{StaticResource PresetSwatchButton}" Background="#FEC84B" Tag="#FEC84B" ToolTip="Yellow" automation:AutomationProperties.Name="Yellow" Click="PresetSwatch_Click" />
+                        <Button Style="{StaticResource PresetSwatchButton}" Background="#12B76A" Tag="#12B76A" ToolTip="Green" automation:AutomationProperties.Name="Green" Click="PresetSwatch_Click" />
+                        <Button Style="{StaticResource PresetSwatchButton}" Background="#4CC9F0" Tag="#4CC9F0" ToolTip="Cyan" automation:AutomationProperties.Name="Cyan" Click="PresetSwatch_Click" />
+                        <Button Style="{StaticResource PresetSwatchButton}" Background="#246BCE" Tag="#246BCE" ToolTip="Blue" automation:AutomationProperties.Name="Blue" Click="PresetSwatch_Click" />
+                        <Button Style="{StaticResource PresetSwatchButton}" Background="#7F56D9" Tag="#7F56D9" ToolTip="Purple" automation:AutomationProperties.Name="Purple" Click="PresetSwatch_Click" />
+                        <Button Style="{StaticResource PresetSwatchButton}" Background="#D444F1" Tag="#D444F1" ToolTip="Magenta" automation:AutomationProperties.Name="Magenta" Click="PresetSwatch_Click" />
+                        <Button Style="{StaticResource PresetSwatchButton}" Background="#08111F" Tag="#08111F" ToolTip="Kiosk navy" automation:AutomationProperties.Name="Kiosk navy" Click="PresetSwatch_Click" />
+                        <Button Style="{StaticResource PresetSwatchButton}" Background="#182332" Tag="#182332" ToolTip="Slate navy" automation:AutomationProperties.Name="Slate navy" Click="PresetSwatch_Click" />
+                        <Button Style="{StaticResource PresetSwatchButton}" Background="#155EEF" Tag="#155EEF" ToolTip="Royal blue" automation:AutomationProperties.Name="Royal blue" Click="PresetSwatch_Click" />
+                        <Button Style="{StaticResource PresetSwatchButton}" Background="#EAF3FF" Tag="#EAF3FF" ToolTip="Pale blue" automation:AutomationProperties.Name="Pale blue" Click="PresetSwatch_Click" />
+                    </UniformGrid>
+
+                    <Grid Margin="0,2,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="70" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Border Height="54"
+                                Background="{Binding DraftBrush, ElementName=Root}"
+                                BorderBrush="#667085"
+                                BorderThickness="1"
+                                CornerRadius="5"
+                                automation:AutomationProperties.Name="Selected color preview" />
+                        <StackPanel Grid.Column="1" Margin="12,4,0,0">
+                            <TextBlock Text="Preview" Foreground="#475467" />
+                            <TextBlock Text="{Binding DraftHex, ElementName=Root}" FontFamily="Consolas" FontSize="15" FontWeight="SemiBold" />
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid Margin="0,2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="22" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="38" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="R" VerticalAlignment="Center" FontWeight="SemiBold" />
+                        <Slider x:Name="RedSlider" Grid.Column="1" Minimum="0" Maximum="255" TickFrequency="1" IsSnapToTickEnabled="True"
+                                Value="{Binding DraftRed, ElementName=Root, Mode=TwoWay}"
+                                automation:AutomationProperties.Name="Red channel" />
+                        <TextBlock Grid.Column="2" Text="{Binding DraftRed, ElementName=Root, StringFormat={}{0:0}}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                    </Grid>
+                    <Grid Margin="0,2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="22" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="38" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="G" VerticalAlignment="Center" FontWeight="SemiBold" />
+                        <Slider Grid.Column="1" Minimum="0" Maximum="255" TickFrequency="1" IsSnapToTickEnabled="True"
+                                Value="{Binding DraftGreen, ElementName=Root, Mode=TwoWay}"
+                                automation:AutomationProperties.Name="Green channel" />
+                        <TextBlock Grid.Column="2" Text="{Binding DraftGreen, ElementName=Root, StringFormat={}{0:0}}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                    </Grid>
+                    <Grid Margin="0,2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="22" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="38" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="B" VerticalAlignment="Center" FontWeight="SemiBold" />
+                        <Slider Grid.Column="1" Minimum="0" Maximum="255" TickFrequency="1" IsSnapToTickEnabled="True"
+                                Value="{Binding DraftBlue, ElementName=Root, Mode=TwoWay}"
+                                automation:AutomationProperties.Name="Blue channel" />
+                        <TextBlock Grid.Column="2" Text="{Binding DraftBlue, ElementName=Root, StringFormat={}{0:0}}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                    </Grid>
+
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,-4,-4">
+                        <Button Content="Cancel" Click="Cancel_Click" automation:AutomationProperties.Name="Cancel color change" />
+                        <Button Content="Apply" Style="{StaticResource PrimaryButton}" Click="Apply_Click" automation:AutomationProperties.Name="Apply selected color" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Popup>
+    </Grid>
+</UserControl>

@@ -1,0 +1,24 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\VoiceBoothKiosk.Domain\VoiceBoothKiosk.Domain.csproj" />
+    <ProjectReference Include="..\VoiceBoothKiosk.Application\VoiceBoothKiosk.Application.csproj" />
+    <ProjectReference Include="..\VoiceBoothKiosk.Infrastructure\VoiceBoothKiosk.Infrastructure.csproj" />
+    <ProjectReference Include="..\VoiceBoothKiosk.Audio.Windows\VoiceBoothKiosk.Audio.Windows.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AssemblyName>VoiceBoothKiosk</AssemblyName>
+    <RootNamespace>VoiceBoothKiosk.App</RootNamespace>
+    <Version>1.0.0</Version>
+    <Authors>KGAN Engineering</Authors>
+    <Product>Voice Booth Kiosk</Product>
+  </PropertyGroup>
+
+</Project>

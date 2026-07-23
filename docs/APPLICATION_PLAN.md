@@ -70,7 +70,7 @@ Do not enable publish trimming initially. WPF and reflection-heavy libraries req
 
 The welcome screen contains:
 
-- Configurable logo, title, subtitle, welcome headline, and session-name help text
+- Configurable logo, title, subtitle, wide welcome headline, two optional smaller stacked supporting blocks, and session-name help text
 - A large Session Name field
 - Suggested format text: `Name-topic`
 - A live preview of the eventual folder-safe session name
@@ -147,6 +147,7 @@ If the active session contains no recorded audio, show an explicit **End Empty S
 1. Stop active recording or playback safely.
 2. Show a summary: session name, non-empty clip count, total duration, target, and output filenames.
 3. Let the user choose from destination presets configured with the editor's normal folder picker.
+   When the configured skip-selection option is enabled, resolve the enabled default destination and proceed directly to export.
 4. Validate destination availability, write permission, and free space.
 5. Export into a hidden/staging folder with `.partial` filenames and a staged `Raw` subfolder.
 6. Close, flush, and validate every MP3 and every matching lossless WAV by reopening them and checking format, length, and basic readability.
@@ -353,7 +354,7 @@ Automatic retention must never silently destroy the only copy. The implemented d
 | Category | Examples |
 | --- | --- |
 | Branding | App title/subtitle, managed local logo asset, visual and hexadecimal color controls, type scale, background, station identity |
-| Content | Welcome text, session-name help, recording instructions, device help, end-session text, privacy notice |
+| Content | Welcome headline, two stacked welcome supporting blocks, session-name help, recording instructions, device help, end-session text, privacy notice; actual newlines and literal `\n` are rendered as line breaks |
 | Layout policy | Left/right clip rail, text-block visibility, compact/standard/large controls, waveform colors |
 | Audio | Canonical format, MP3 bitrate, default endpoint IDs, allow device changes, stereo policy, level thresholds |
 | Destinations | Approved roots, friendly labels, default destination, minimum free space, browse permission |
@@ -436,7 +437,9 @@ The app itself should:
 - Use a borderless maximized window sized to the intended kiosk monitor
 - Recover focus after allowed dialogs close
 - Handle Alt+F4 as a policy-controlled request rather than exiting in patron mode
-- Avoid spawning helper processes that immediately replace the main process
+- In supervised mode, keep a hidden parent supervisor alongside the visible recorder; do not use a detached one-shot launcher
+- Have the supervisor restore/foreground the visible recorder every two minutes and relaunch it after an unexpected exit
+- Reserve a distinct intentional-exit code for the protected four-second X so it can stop the supervisor without a relaunch
 - Detect display/DPI changes and retain a usable layout at 100-200% scaling
 - Have a watchdog-friendly nonzero exit code for unrecoverable startup failures
 - Never require administrator elevation at runtime

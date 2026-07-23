@@ -23,6 +23,7 @@
     <ProjectReference Include="..\..\src\VoiceBoothKiosk.Application\VoiceBoothKiosk.Application.csproj" />
     <ProjectReference Include="..\..\src\VoiceBoothKiosk.Infrastructure\VoiceBoothKiosk.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\VoiceBoothKiosk.Audio.Windows\VoiceBoothKiosk.Audio.Windows.csproj" />
+    <ProjectReference Include="..\..\src\VoiceBoothKiosk.Supervision\VoiceBoothKiosk.Supervision.csproj" />
   </ItemGroup>
 
 </Project>

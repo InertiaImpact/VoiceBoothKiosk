@@ -44,7 +44,12 @@ public sealed class MainViewModel : ObservableObject, IMainWindowActions, IAsync
     private bool _applyingState;
     private bool _applyingDevices;
     private bool _applyingOutputVolume;
+    private bool _applyingInputGain;
+    private double _inputGain = 1;
+    private bool _canControlInputGain;
+    private string _inputGainMessage = "Select a microphone to check its gain control.";
     private double _outputVolume = 1;
+    private CancellationTokenSource? _inputGainChangeCancellation;
     private CancellationTokenSource? _volumeChangeCancellation;
     private CancellationTokenSource? _inputTestCancellation;
     private Task<AudioDeviceTestResult>? _inputTestTask;
@@ -59,6 +64,7 @@ public sealed class MainViewModel : ObservableObject, IMainWindowActions, IAsync
     private string _inputTestMessage = "Select Start Mic Test to watch the live microphone level.";
     private string _outputTestMessage = "Select Test Speakers to hear a two-note tone.";
     private string _readinessMessage = "Checking audio devices…";
+    private string _startSessionError = string.Empty;
     private bool _isReady;
     private bool _hasAvailableInput;
     private bool _hasAdequateLocalStorage;
@@ -108,7 +114,7 @@ public sealed class MainViewModel : ObservableObject, IMainWindowActions, IAsync
         _sessionTimer = new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Background, OnSessionTimerTick, _dispatcher);
         _recordingUiTimer = new DispatcherTimer(RecordingUiInterval, DispatcherPriority.Background, OnRecordingUiTimerTick, _dispatcher);
 
-        StartSessionCommand = new AsyncRelayCommand(StartSessionAsync, CanStartSession);
+        StartSessionCommand = new AsyncRelayCommand(StartSessionAsync, CanAttemptStartSession);
         RecordCommand = new AsyncRelayCommand(RecordPauseAsync, CanRecordPause);
         PlayPauseCommand = new AsyncRelayCommand(PlayPauseAsync, CanPlayPause);
         ReturnToStartCommand = new AsyncRelayCommand(ReturnToStartAsync, () => SelectedDuration > TimeSpan.Zero && !IsRecording);
@@ -167,6 +173,10 @@ public sealed class MainViewModel : ObservableObject, IMainWindowActions, IAsync
     public string ApplicationTitle => _state.Settings.Branding.ApplicationTitle;
     public string ApplicationSubtitle => _state.Settings.Branding.ApplicationSubtitle;
     public string WelcomeInstructions => Content("welcome.instructions", "Enter a session name, then record one or more clips.");
+    public string WelcomeSupportingTextOne => OptionalContent("welcome.supporting.1");
+    public string WelcomeSupportingTextTwo => OptionalContent("welcome.supporting.2");
+    public bool HasWelcomeSupportingTextOne => !string.IsNullOrWhiteSpace(WelcomeSupportingTextOne);
+    public bool HasWelcomeSupportingTextTwo => !string.IsNullOrWhiteSpace(WelcomeSupportingTextTwo);
     public string SessionNameHelp => Content("welcome.session-name-help", "Suggested format: Name-topic");
     public string RecordingInstructions => Content("recording.instructions", "Press Record when you are ready.");
     public string PrivacyNotice => Content("privacy.notice", "Recordings are held locally until this session is successfully saved.");
@@ -184,6 +194,8 @@ public sealed class MainViewModel : ObservableObject, IMainWindowActions, IAsync
     public IReadOnlyList<ContentBlock> EndSessionExtraContent => ExtraContent("session");
     public ImageSource? LogoSource => _logoSource;
     public bool HasLogo => LogoSource is not null;
+    public double WelcomeLogoWidth => CalculateLogoContainerWidth(LogoSource, 66, 6, 220);
+    public double HeaderLogoWidth => CalculateLogoContainerWidth(LogoSource, 46, 4, 160);
     public bool AllowDeviceSelection => _state.Settings.Audio.AllowPatronDeviceSelection;
     public bool AllowOutputVolumeControl => _state.Settings.Audio.AllowOutputVolumeControl;
     public bool ShowHoldToExit => _state.Settings.Kiosk.AllowClose ||
@@ -232,6 +244,7 @@ public sealed class MainViewModel : ObservableObject, IMainWindowActions, IAsync
 
             OnPropertyChanged(nameof(HasSessionNamePreview));
             OnPropertyChanged(nameof(SessionFolderPreview));
+            SetStartSessionError(string.Empty);
             NotifyCommandStates();
         }
     }
@@ -351,6 +364,8 @@ public sealed class MainViewModel : ObservableObject, IMainWindowActions, IAsync
         private set => SetProperty(ref _readinessMessage, value);
     }
     public Brush ReadinessBrush => _isReady ? Brushes.MediumSpringGreen : Brushes.Gold;
+    public string StartSessionError => _startSessionError;
+    public bool HasStartSessionError => !string.IsNullOrWhiteSpace(StartSessionError);
 
     public bool IsDevicePanelOpen
     {
@@ -374,11 +389,14 @@ public sealed class MainViewModel : ObservableObject, IMainWindowActions, IAsync
                 return;
             }
             RequestStopInputTest("Microphone changed. Select Start Mic Test when ready.");
+            CanControlInputGain = false;
+            InputGainMessage = "Checking the selected microphone's Windows gain control…";
             _hasAvailableInput = value.IsDefault
                 ? InputDevices.Any(device => !device.IsDefault && device.IsAvailable)
                 : value.IsAvailable;
             UpdateReadiness();
             _ = ExecuteSafeAsync(() => _coordinator.SelectInputDeviceAsync(ToSelection(value, AudioDeviceFlow.Input)));
+            _ = LoadInputGainAsync();
         }
     }
     public DeviceOptionViewModel? SelectedOutputDevice
@@ -392,7 +410,7 @@ public sealed class MainViewModel : ObservableObject, IMainWindowActions, IAsync
             }
             RequestStopOutputTest();
             _ = ExecuteSafeAsync(() => _coordinator.SelectOutputDeviceAsync(ToSelection(value, AudioDeviceFlow.Output)));
-            _ = ExecuteSafeAsync(LoadOutputVolumeAsync, showDialog: false);
+            _ = ExecuteSafeAsync(LoadOutputVolumeAsync);
         }
     }
     public double OutputVolume
@@ -409,6 +427,30 @@ public sealed class MainViewModel : ObservableObject, IMainWindowActions, IAsync
         }
     }
     public string OutputVolumeText => $"{OutputVolume:P0}";
+    public double InputGain
+    {
+        get => _inputGain;
+        set
+        {
+            if (!SetProperty(ref _inputGain, Math.Clamp(value, 0, 1)) || _applyingInputGain)
+            {
+                return;
+            }
+            OnPropertyChanged(nameof(InputGainText));
+            _ = DebounceInputGainAsync();
+        }
+    }
+    public string InputGainText => $"{InputGain:P0}";
+    public bool CanControlInputGain
+    {
+        get => _canControlInputGain;
+        private set => SetProperty(ref _canControlInputGain, value);
+    }
+    public string InputGainMessage
+    {
+        get => _inputGainMessage;
+        private set => SetProperty(ref _inputGainMessage, value);
+    }
     public bool IsInputTestActive
     {
         get => _isInputTestActive;
@@ -541,16 +583,23 @@ public sealed class MainViewModel : ObservableObject, IMainWindowActions, IAsync
 
     public async Task InitializeAsync()
     {
-        await ExecuteSafeAsync(() => _coordinator.InitializeAsync()).ConfigureAwait(true);
+        if (!await ExecuteSafeAsync(() => _coordinator.InitializeAsync()).ConfigureAwait(true))
+        {
+            SurfaceWelcomeError(StatusMessage);
+        }
         if (_coordinator.State.Mode == CoordinatorMode.RecoveryAvailable)
         {
             var resume = _prompts.Confirm(
                 "Interrupted session found",
                 "A recording session was interrupted before it was exported. Resume it now? Selecting No moves it to administrator recovery without deleting it.",
                 "Resume");
-            await ExecuteSafeAsync(resume
-                ? () => _coordinator.ResumeRecoveredSessionAsync()
-                : () => _coordinator.AbandonRecoveredSessionAsync()).ConfigureAwait(true);
+            if (!await ExecuteSafeAsync(
+                resume
+                    ? () => _coordinator.ResumeRecoveredSessionAsync()
+                    : () => _coordinator.AbandonRecoveredSessionAsync()).ConfigureAwait(true))
+            {
+                SurfaceWelcomeError(StatusMessage);
+            }
         }
 
         await Task.WhenAll(RefreshDevicesAsync(), RefreshFreeSpaceAsync(), RefreshExportPreflightAsync()).ConfigureAwait(true);
@@ -584,9 +633,10 @@ public sealed class MainViewModel : ObservableObject, IMainWindowActions, IAsync
         NotifyUserActivity();
         try
         {
-            await _configurationEditorLauncher.OpenAsync().ConfigureAwait(true);
+            await _configurationEditorLauncher.OpenAsync(BuildReadinessDetails()).ConfigureAwait(true);
             if (!await ExecuteSafeAsync(() => _coordinator.ReloadConfigurationAsync()).ConfigureAwait(true))
             {
+                SurfaceWelcomeError(StatusMessage);
                 return;
             }
 
@@ -595,16 +645,17 @@ public sealed class MainViewModel : ObservableObject, IMainWindowActions, IAsync
             // readiness checks use the newly saved format and destinations.
             ApplyState(_coordinator.State);
             var refreshed = await ExecuteSafeAsync(async () =>
-                    await Task.WhenAll(RefreshDevicesAsync(), RefreshFreeSpaceAsync(), RefreshExportPreflightAsync()).ConfigureAwait(true),
-                showDialog: true).ConfigureAwait(true);
+                    await Task.WhenAll(RefreshDevicesAsync(), RefreshFreeSpaceAsync(), RefreshExportPreflightAsync()).ConfigureAwait(true)).ConfigureAwait(true);
             if (!refreshed)
             {
+                SurfaceWelcomeError(StatusMessage);
                 return;
             }
             if (IsEndSessionPanelOpen)
             {
                 BuildExportPreview();
             }
+            SetStartSessionError(string.Empty);
             StatusMessage = _state.Session is null
                 ? "Settings applied. New sessions will use the updated configuration."
                 : "Settings applied. Save locations are available now; audio format and device defaults apply to the next session.";
@@ -612,7 +663,7 @@ public sealed class MainViewModel : ObservableObject, IMainWindowActions, IAsync
         catch (Exception exception)
         {
             StatusMessage = exception.Message;
-            _prompts.ShowError("Settings", exception.Message);
+            SurfaceWelcomeError($"Settings could not be opened: {exception.Message}");
         }
         finally
         {
@@ -648,15 +699,25 @@ public sealed class MainViewModel : ObservableObject, IMainWindowActions, IAsync
         var name = SessionNameInput.Trim();
         if (name.Length == 0)
         {
+            SetStartSessionError("Enter a session name before starting.");
             return;
         }
-        await RefreshFreeSpaceAsync().ConfigureAwait(true);
+
+        SetStartSessionError(string.Empty);
+        await Task.WhenAll(RefreshDevicesAsync(), RefreshFreeSpaceAsync(), RefreshExportPreflightAsync()).ConfigureAwait(true);
         if (!_isReady)
         {
-            _prompts.ShowError("Voice Booth is not ready", ReadinessMessage);
+            SetStartSessionError(ReadinessMessage);
             return;
         }
-        await ExecuteSafeAsync(() => _coordinator.StartSessionAsync(name)).ConfigureAwait(true);
+
+        if (!await ExecuteSafeAsync(() => _coordinator.StartSessionAsync(name)).ConfigureAwait(true))
+        {
+            SetStartSessionError(string.IsNullOrWhiteSpace(StatusMessage)
+                ? "The session could not be started. Open Settings for detailed readiness information."
+                : StatusMessage);
+            return;
+        }
         SessionNameInput = string.Empty;
     }
 
@@ -768,7 +829,8 @@ public sealed class MainViewModel : ObservableObject, IMainWindowActions, IAsync
     private async Task OpenDevicesAsync()
     {
         await RefreshDevicesAsync().ConfigureAwait(true);
-        await ExecuteSafeAsync(LoadOutputVolumeAsync, showDialog: false).ConfigureAwait(true);
+        await ExecuteSafeAsync(async () =>
+            await Task.WhenAll(LoadInputGainAsync(), LoadOutputVolumeAsync()).ConfigureAwait(true)).ConfigureAwait(true);
         IsDevicePanelOpen = true;
     }
 
@@ -999,6 +1061,83 @@ public sealed class MainViewModel : ObservableObject, IMainWindowActions, IAsync
         OnPropertyChanged(nameof(InputLevelStatus));
     }
 
+    private async Task LoadInputGainAsync()
+    {
+        _inputGainChangeCancellation?.Cancel();
+        var selectedDevice = SelectedInputDevice;
+        if (selectedDevice?.IsAvailable != true)
+        {
+            CanControlInputGain = false;
+            InputGainMessage = "The selected microphone is unavailable.";
+            return;
+        }
+
+        CanControlInputGain = false;
+        InputGainMessage = "Checking the selected microphone's Windows gain control…";
+
+        try
+        {
+            var gain = await _deviceService.GetInputGainAsync(
+                ToSelection(selectedDevice, AudioDeviceFlow.Input)).ConfigureAwait(true);
+            if (!ReferenceEquals(selectedDevice, SelectedInputDevice))
+            {
+                return;
+            }
+            if (gain is null)
+            {
+                CanControlInputGain = false;
+                InputGainMessage = "This microphone's gain is controlled by its hardware or driver.";
+                return;
+            }
+
+            _applyingInputGain = true;
+            try
+            {
+                InputGain = gain.Value;
+                OnPropertyChanged(nameof(InputGainText));
+            }
+            finally
+            {
+                _applyingInputGain = false;
+            }
+            CanControlInputGain = true;
+            InputGainMessage = "Windows saves this level for the selected microphone.";
+        }
+        catch (Exception exception)
+        {
+            CanControlInputGain = false;
+            InputGainMessage = $"Microphone gain is unavailable: {exception.Message}";
+        }
+    }
+
+    private async Task DebounceInputGainAsync()
+    {
+        _inputGainChangeCancellation?.Cancel();
+        _inputGainChangeCancellation?.Dispose();
+        _inputGainChangeCancellation = new CancellationTokenSource();
+        var cancellationToken = _inputGainChangeCancellation.Token;
+        try
+        {
+            await Task.Delay(100, cancellationToken).ConfigureAwait(true);
+            if (CanControlInputGain && SelectedInputDevice?.IsAvailable == true)
+            {
+                await _deviceService.SetInputGainAsync(
+                    ToSelection(SelectedInputDevice, AudioDeviceFlow.Input),
+                    (float)InputGain,
+                    cancellationToken).ConfigureAwait(true);
+                InputGainMessage = $"Microphone gain set to {InputGain:P0}. Windows saves this level for this device.";
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            CanControlInputGain = false;
+            InputGainMessage = $"Microphone gain could not be changed: {exception.Message}";
+        }
+    }
+
     private async Task LoadOutputVolumeAsync()
     {
         if (!_state.Settings.Audio.AllowOutputVolumeControl || SelectedOutputDevice?.IsAvailable != true)
@@ -1064,13 +1203,34 @@ public sealed class MainViewModel : ObservableObject, IMainWindowActions, IAsync
 
         if (_state.Session?.HasUnresolvedSegments == true)
         {
-            _prompts.ShowError(
-                "Recording needs recovery",
-                "A recording segment could not be safely finalized. The session has been kept locally; start a new take or have an administrator recover it before exporting.");
+            StatusMessage = "A recording segment could not be safely finalized. The session remains local; start a new take or have an administrator recover it before exporting.";
             return;
         }
 
         ApplyState(_coordinator.State);
+        if (_state.Settings.SessionBehavior.SkipDestinationSelection)
+        {
+            if (HasRecordedAudio)
+            {
+                BuildExportPreview();
+                var defaultDestinationId = _state.Settings.DefaultDestinationId;
+                SelectedDestination = Destinations.FirstOrDefault(destination =>
+                    string.Equals(destination.Id, defaultDestinationId, StringComparison.OrdinalIgnoreCase));
+                if (SelectedDestination is null)
+                {
+                    StatusMessage = "The configured default save destination is unavailable. Open Settings and choose an enabled default destination.";
+                    return;
+                }
+            }
+            else
+            {
+                ExportFilePreviews.Clear();
+            }
+
+            await ExportAndEndAsync().ConfigureAwait(true);
+            return;
+        }
+
         if (HasRecordedAudio)
         {
             BuildExportPreview();
@@ -1319,7 +1479,14 @@ public sealed class MainViewModel : ObservableObject, IMainWindowActions, IAsync
         {
             RequestStopInputTest("Audio devices changed. Select Start Mic Test to test the new selection.");
             RequestStopOutputTest();
-            _ = ExecuteSafeAsync(RefreshDevicesAsync, showDialog: false);
+            _ = ExecuteSafeAsync(async () =>
+            {
+                await RefreshDevicesAsync().ConfigureAwait(true);
+                if (IsDevicePanelOpen)
+                {
+                    await Task.WhenAll(LoadInputGainAsync(), LoadOutputVolumeAsync()).ConfigureAwait(true);
+                }
+            });
         }
         if (_dispatcher.CheckAccess())
         {
@@ -1392,7 +1559,7 @@ public sealed class MainViewModel : ObservableObject, IMainWindowActions, IAsync
         else if (state.SelectedClip?.HasAudio == true &&
                  (previousClipId != state.SelectedClip.Id || previousMode == CoordinatorMode.Recording || _loadedWaveformClipId != state.SelectedClip.Id))
         {
-            _ = ExecuteSafeAsync(RefreshWaveformAsync, showDialog: false);
+            _ = ExecuteSafeAsync(RefreshWaveformAsync);
         }
         else if (state.SelectedClip?.HasAudio != true)
         {
@@ -1464,10 +1631,10 @@ public sealed class MainViewModel : ObservableObject, IMainWindowActions, IAsync
     {
         foreach (var property in new[]
         {
-            nameof(ApplicationTitle), nameof(ApplicationSubtitle), nameof(WelcomeInstructions), nameof(SessionNameHelp), nameof(RecordingInstructions),
+            nameof(ApplicationTitle), nameof(ApplicationSubtitle), nameof(WelcomeInstructions), nameof(WelcomeSupportingTextOne), nameof(WelcomeSupportingTextTwo), nameof(HasWelcomeSupportingTextOne), nameof(HasWelcomeSupportingTextTwo), nameof(SessionNameHelp), nameof(RecordingInstructions),
             nameof(PrivacyNotice), nameof(DeviceInstructions), nameof(EndSessionInstructions), nameof(EndSessionPanelInstructions),
             nameof(EndSessionPrimaryButtonText), nameof(WelcomeExtraContent),
-            nameof(RecordingExtraContent), nameof(DeviceExtraContent), nameof(EndSessionExtraContent), nameof(LogoSource), nameof(HasLogo),
+            nameof(RecordingExtraContent), nameof(DeviceExtraContent), nameof(EndSessionExtraContent), nameof(LogoSource), nameof(HasLogo), nameof(WelcomeLogoWidth), nameof(HeaderLogoWidth),
             nameof(AllowDeviceSelection), nameof(AllowOutputVolumeControl), nameof(ShowHoldToExit), nameof(FullScreen), nameof(AlwaysOnTop), nameof(CanOpenConfiguration), nameof(KioskCursor),
             nameof(TextScale), nameof(ControlButtonMinHeight), nameof(ClipRailColumn), nameof(MainWorkspaceColumn),
             nameof(LeftWorkspaceWidth), nameof(RightWorkspaceWidth), nameof(WaveformBrush), nameof(WaveformBackgroundBrush), nameof(RecordingWaveformBrush), nameof(IsSessionActive),
@@ -1485,7 +1652,7 @@ public sealed class MainViewModel : ObservableObject, IMainWindowActions, IAsync
         }
     }
 
-    private bool CanStartSession() => _state.Capabilities.CanStartSession && _isReady && !string.IsNullOrWhiteSpace(SessionNameInput);
+    private bool CanAttemptStartSession() => _state.Capabilities.CanStartSession && !IsBusy;
 
     private static bool HasCommandLineSwitch(string value) =>
         Environment.GetCommandLineArgs().Contains(value, StringComparer.OrdinalIgnoreCase);
@@ -1520,7 +1687,7 @@ public sealed class MainViewModel : ObservableObject, IMainWindowActions, IAsync
         }
     }
 
-    private async Task<bool> ExecuteSafeAsync(Func<Task> action, bool showDialog = true)
+    private async Task<bool> ExecuteSafeAsync(Func<Task> action)
     {
         try
         {
@@ -1535,10 +1702,6 @@ public sealed class MainViewModel : ObservableObject, IMainWindowActions, IAsync
         catch (Exception exception)
         {
             StatusMessage = exception.Message;
-            if (showDialog)
-            {
-                _prompts.ShowError("Voice Booth", exception.Message);
-            }
             return false;
         }
     }
@@ -1626,15 +1789,28 @@ public sealed class MainViewModel : ObservableObject, IMainWindowActions, IAsync
         }
     }
 
-    private string Content(string id, string fallback) =>
-        _state.Settings.ContentBlocks.FirstOrDefault(block => block.IsVisible && string.Equals(block.Id, id, StringComparison.OrdinalIgnoreCase))?.Text
-        ?? fallback;
+    private string Content(string id, string fallback)
+    {
+        var text = _state.Settings.ContentBlocks.FirstOrDefault(block =>
+            block.IsVisible && string.Equals(block.Id, id, StringComparison.OrdinalIgnoreCase))?.Text;
+        return InstructionTextFormatter.ForDisplay(text ?? fallback);
+    }
+
+    private string OptionalContent(string id)
+    {
+        var block = _state.Settings.ContentBlocks.FirstOrDefault(block =>
+            string.Equals(block.Id, id, StringComparison.OrdinalIgnoreCase));
+        return block is { IsVisible: true }
+            ? InstructionTextFormatter.ForDisplay(block.Text)
+            : string.Empty;
+    }
 
     private IReadOnlyList<ContentBlock> ExtraContent(string region) =>
         _state.Settings.ContentBlocks
             .Where(block => block.IsVisible &&
                 (block.Id.StartsWith($"{region}.extra.", StringComparison.OrdinalIgnoreCase) ||
                  block.Id.StartsWith($"{region}.custom", StringComparison.OrdinalIgnoreCase)))
+            .Select(block => block with { Text = InstructionTextFormatter.ForDisplay(block.Text) })
             .ToArray();
 
     private void UpdateReadiness()
@@ -1649,6 +1825,37 @@ public sealed class MainViewModel : ObservableObject, IMainWindowActions, IAsync
                     : $"Microphone and MP3 export ready: {SelectedInputDevice?.DisplayName ?? "Windows default input"}";
         OnPropertyChanged(nameof(ReadinessBrush));
         NotifyCommandStates();
+    }
+
+    private RecorderReadinessDetails BuildReadinessDetails()
+    {
+        var input = _hasAvailableInput
+            ? $"Ready — {SelectedInputDevice?.DisplayName ?? "Windows default input"}"
+            : $"Unavailable — {ReadinessMessage}";
+        var storage = _hasAdequateLocalStorage
+            ? $"Ready — {FreeSpaceText} (512 MB minimum required)"
+            : $"Unavailable — {FreeSpaceText} (512 MB minimum required)";
+        var encoder = _hasAvailableEncoder
+            ? $"Ready — {_exportPreflightMessage ?? "MP3 encoder available"}"
+            : $"Unavailable — {_exportPreflightMessage ?? "MP3 encoder unavailable"}";
+        return new RecorderReadinessDetails(_isReady, ReadinessMessage, input, storage, encoder);
+    }
+
+    private void SetStartSessionError(string message)
+    {
+        if (!SetProperty(ref _startSessionError, message, nameof(StartSessionError)))
+        {
+            return;
+        }
+        OnPropertyChanged(nameof(HasStartSessionError));
+    }
+
+    private void SurfaceWelcomeError(string message)
+    {
+        if (_state.Session is null)
+        {
+            SetStartSessionError(message);
+        }
     }
 
     private void SetWaveformPeaks(IEnumerable<double> values)
@@ -1710,6 +1917,8 @@ public sealed class MainViewModel : ObservableObject, IMainWindowActions, IAsync
         _logoSource = LoadLogo(settings.Branding.LogoPath);
         OnPropertyChanged(nameof(LogoSource));
         OnPropertyChanged(nameof(HasLogo));
+        OnPropertyChanged(nameof(WelcomeLogoWidth));
+        OnPropertyChanged(nameof(HeaderLogoWidth));
     }
 
     public static void ApplyApplicationTheme(KioskSettings settings)
@@ -1745,7 +1954,9 @@ public sealed class MainViewModel : ObservableObject, IMainWindowActions, IAsync
         SetThemeBrush("MutedTextBrush", muted);
         SetThemeBrush("AccentBrush", primary);
         SetThemeBrush("AccentDarkBrush", Blend(primary, Colors.Black, 0.35));
+        SetThemeBrush("AccentForegroundBrush", ContrastingText(primary));
         SetThemeBrush("RecordBrush", record);
+        SetThemeBrush("RecordForegroundBrush", ContrastingText(record));
         if (System.Windows.Application.Current is { } application)
         {
             application.Resources["PressedScale"] = settings.Accessibility.ReducedMotion ? 1d : 0.98d;
@@ -1774,6 +1985,22 @@ public sealed class MainViewModel : ObservableObject, IMainWindowActions, IAsync
         {
             return null;
         }
+    }
+
+    private static double CalculateLogoContainerWidth(
+        ImageSource? source,
+        double containerHeight,
+        double padding,
+        double maximumWidth)
+    {
+        if (source is null || source.Height <= 0 || !double.IsFinite(source.Width) || !double.IsFinite(source.Height))
+        {
+            return containerHeight;
+        }
+
+        var contentHeight = Math.Max(1, containerHeight - (padding * 2));
+        var aspectWidth = (contentHeight * source.Width / source.Height) + (padding * 2);
+        return Math.Clamp(aspectWidth, containerHeight, maximumWidth);
     }
 
     private static Brush ParseBrush(string? value, Color fallback)
@@ -1835,6 +2062,15 @@ public sealed class MainViewModel : ObservableObject, IMainWindowActions, IAsync
 
     private static double RelativeLuminance(Color color) =>
         (0.2126 * color.R + 0.7152 * color.G + 0.0722 * color.B) / 255d;
+
+    private static Color ContrastingText(Color background)
+    {
+        var dark = Color.FromRgb(15, 29, 48);
+        var backgroundLuminance = RelativeLuminance(background);
+        var whiteContrast = 1.05 / (backgroundLuminance + 0.05);
+        var darkContrast = (backgroundLuminance + 0.05) / (RelativeLuminance(dark) + 0.05);
+        return whiteContrast >= darkContrast ? Colors.White : dark;
+    }
 
     private static void TryPlayStatusCue(CoordinatorMode mode)
     {
@@ -1935,6 +2171,8 @@ public sealed class MainViewModel : ObservableObject, IMainWindowActions, IAsync
         await IgnoreDeviceTestCompletionAsync(outputTestTask).ConfigureAwait(false);
         _waveformLoadCancellation?.Cancel();
         _waveformLoadCancellation?.Dispose();
+        _inputGainChangeCancellation?.Cancel();
+        _inputGainChangeCancellation?.Dispose();
         _volumeChangeCancellation?.Cancel();
         _volumeChangeCancellation?.Dispose();
         _coordinator.StateChanged -= OnCoordinatorStateChanged;

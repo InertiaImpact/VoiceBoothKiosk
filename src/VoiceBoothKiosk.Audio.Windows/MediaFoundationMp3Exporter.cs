@@ -104,6 +104,8 @@ public sealed class MediaFoundationMp3Exporter
             }
 
             cancellationToken.ThrowIfCancellationRequested();
+            Mp3CompatibilitySanitizer.RemoveLeadingId3v2Tag(partialPath, cancellationToken);
+
             TimeSpan encodedDuration;
             using (var reader = new MediaFoundationReader(partialPath))
             {

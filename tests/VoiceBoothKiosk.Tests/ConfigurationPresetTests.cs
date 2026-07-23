@@ -118,6 +118,18 @@ public sealed class ConfigurationPresetTests : IDisposable
                     Id = "welcome.instructions",
                     Text = "Preset instructions",
                     Style = "Body"
+                },
+                new ContentBlock
+                {
+                    Id = "welcome.supporting.1",
+                    Text = "Preset supporting information\\nSecond display line",
+                    Style = "Supporting"
+                },
+                new ContentBlock
+                {
+                    Id = "welcome.supporting.2",
+                    Text = "Another supporting area",
+                    Style = "Supporting"
                 }
             ],
             Destinations = [destination],

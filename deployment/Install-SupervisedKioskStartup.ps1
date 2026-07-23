@@ -31,7 +31,7 @@ if ($PSCmdlet.ShouldProcess($shortcutPath, "Create supervised kiosk startup shor
         $shortcut.TargetPath = $fullRecorderPath
         $shortcut.Arguments = "--supervised-kiosk"
         $shortcut.WorkingDirectory = Split-Path -Parent $fullRecorderPath
-        $shortcut.Description = "Start Voice Booth in supervised full-screen kiosk mode"
+        $shortcut.Description = "Start and supervise Voice Booth in full-screen kiosk mode"
         $shortcut.Save()
     }
     finally {
@@ -41,4 +41,4 @@ if ($PSCmdlet.ShouldProcess($shortcutPath, "Create supervised kiosk startup shor
     }
 }
 
-Write-Host "Voice Booth will start in supervised kiosk mode when $([Environment]::UserName) signs in."
+Write-Host "Voice Booth and its two-minute supervisor will start when $([Environment]::UserName) signs in."

@@ -46,6 +46,14 @@ public sealed class ConfigurationPersistenceTests : IDisposable
     }
 
     [Fact]
+    public void Instruction_text_formatter_renders_literal_and_actual_newlines()
+    {
+        var rendered = InstructionTextFormatter.ForDisplay("First\\nSecond\r\nThird");
+
+        Assert.Equal(string.Join(Environment.NewLine, "First", "Second", "Third"), rendered);
+    }
+
+    [Fact]
     public async Task Application_subtitle_round_trips_through_machine_configuration()
     {
         var paths = CreatePaths();
@@ -56,13 +64,57 @@ public sealed class ConfigurationPersistenceTests : IDisposable
             Branding = defaults.Branding with
             {
                 ApplicationSubtitle = "Community stories, recorded here"
-            }
+            },
+            SessionBehavior = defaults.SessionBehavior with { SkipDestinationSelection = true }
         };
 
         await configuration.SaveAsync(settings);
         var reloaded = await configuration.LoadAsync();
 
         Assert.Equal("Community stories, recorded here", reloaded.Branding.ApplicationSubtitle);
+        Assert.True(reloaded.SessionBehavior.SkipDestinationSelection);
+    }
+
+    [Fact]
+    public void Skipping_destination_selection_requires_a_default_destination()
+    {
+        var defaults = JsonConfigurationService.CreateOperationalDefaults();
+        var settings = defaults with
+        {
+            DefaultDestinationId = null,
+            SessionBehavior = defaults.SessionBehavior with { SkipDestinationSelection = true }
+        };
+
+        var shared = VoiceBoothKiosk.Application.KioskSettingsValidator.Validate(settings);
+        var infrastructure = InfrastructureSettingsValidator.Validate(settings);
+
+        Assert.Contains(shared.Errors, error => error.Path == "sessionBehavior.skipDestinationSelection");
+        Assert.Contains(infrastructure.Errors, error => error.Path == "sessionBehavior.skipDestinationSelection");
+    }
+
+    [Fact]
+    public async Task Schema_one_welcome_supporting_text_migrates_to_two_instruction_blocks()
+    {
+        var paths = CreatePaths();
+        var json = new AtomicJsonFile();
+        var configuration = new JsonConfigurationService(paths, json);
+        var defaults = JsonConfigurationService.CreateOperationalDefaults();
+        var legacy = defaults with
+        {
+            SchemaVersion = 1,
+            Branding = defaults.Branding with { WelcomeSupportingText = "Legacy supporting text" },
+            ContentBlocks = defaults.ContentBlocks
+                .Where(block => !block.Id.StartsWith("welcome.supporting.", StringComparison.OrdinalIgnoreCase))
+                .ToArray()
+        };
+        await json.WriteAsync(paths.MachineSettingsPath, legacy);
+
+        var migrated = await configuration.LoadAsync();
+
+        Assert.Equal(KioskSettings.CurrentSchemaVersion, migrated.SchemaVersion);
+        Assert.Null(migrated.Branding.WelcomeSupportingText);
+        Assert.Equal("Legacy supporting text", migrated.ContentBlocks.Single(block => block.Id == "welcome.supporting.1").Text);
+        Assert.False(string.IsNullOrWhiteSpace(migrated.ContentBlocks.Single(block => block.Id == "welcome.supporting.2").Text));
     }
 
     [Fact]

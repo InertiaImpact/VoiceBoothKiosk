@@ -9,19 +9,30 @@ using VoiceBoothKiosk.Infrastructure.Configuration;
 using VoiceBoothKiosk.Infrastructure.Logging;
 using VoiceBoothKiosk.Infrastructure.Persistence;
 using VoiceBoothKiosk.Infrastructure.Storage;
+using VoiceBoothKiosk.Supervision;
 
 namespace VoiceBoothKiosk.App;
 
 public partial class App : System.Windows.Application
 {
     private const string InstanceMutexName = "Local\\VoiceBoothKiosk.Recorder.SingleInstance";
+    private const string SupervisorMutexName = "Local\\VoiceBoothKiosk.Supervisor.SingleInstance";
     private Mutex? _singleInstanceMutex;
+    private Mutex? _supervisorMutex;
+    private CancellationTokenSource? _supervisorCancellation;
+    private Task? _supervisorTask;
     private RollingFileLogger? _logger;
     private MainViewModel? _mainViewModel;
 
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        if (SupervisedModeArguments.ShouldRunSupervisor(e.Args))
+        {
+            StartSupervisor(e.Args);
+            return;
+        }
 
         _singleInstanceMutex = new Mutex(true, InstanceMutexName, out var ownsMutex);
         if (!ownsMutex)
@@ -127,18 +138,11 @@ public partial class App : System.Windows.Application
         }
         finally
         {
+            _supervisorCancellation?.Cancel();
+            _supervisorCancellation?.Dispose();
             _logger?.Dispose();
-            if (_singleInstanceMutex is not null)
-            {
-                try
-                {
-                    _singleInstanceMutex.ReleaseMutex();
-                }
-                catch (ApplicationException)
-                {
-                }
-                _singleInstanceMutex.Dispose();
-            }
+            ReleaseMutex(_singleInstanceMutex);
+            ReleaseMutex(_supervisorMutex);
         }
 
         base.OnExit(e);
@@ -180,6 +184,71 @@ public partial class App : System.Windows.Application
     }
 
     private static string? EmptyToNull(string? value) => string.IsNullOrWhiteSpace(value) ? null : value;
+
+    private void StartSupervisor(IReadOnlyList<string> arguments)
+    {
+        _supervisorMutex = new Mutex(true, SupervisorMutexName, out var ownsMutex);
+        if (!ownsMutex)
+        {
+            Shutdown(0);
+            return;
+        }
+
+        ShutdownMode = ShutdownMode.OnExplicitShutdown;
+        _supervisorCancellation = new CancellationTokenSource();
+        _supervisorTask = RunSupervisorAsync(arguments, _supervisorCancellation.Token);
+    }
+
+    private async Task RunSupervisorAsync(IReadOnlyList<string> arguments, CancellationToken cancellationToken)
+    {
+        var exitCode = 0;
+        try
+        {
+            var executablePath = Environment.ProcessPath
+                ?? throw new InvalidOperationException("The recorder executable path could not be determined.");
+            var interval = SupervisedModeArguments.ResolveCheckInterval(
+                Environment.GetEnvironmentVariable(SupervisedModeArguments.CheckIntervalEnvironmentVariable));
+            var watchdog = new SupervisedModeWatchdog();
+            await watchdog.RunAsync(
+                executablePath,
+                SupervisedModeArguments.BuildChildArguments(arguments),
+                interval,
+                cancellationToken).ConfigureAwait(true);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            exitCode = 3;
+            MessageBox.Show(
+                $"Voice Booth supervision stopped unexpectedly.\n\n{exception.Message}",
+                "Voice Booth supervisor",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
+        finally
+        {
+            Shutdown(exitCode);
+        }
+    }
+
+    private static void ReleaseMutex(Mutex? mutex)
+    {
+        if (mutex is null)
+        {
+            return;
+        }
+
+        try
+        {
+            mutex.ReleaseMutex();
+        }
+        catch (ApplicationException)
+        {
+        }
+        mutex.Dispose();
+    }
 
     private static void ApplyLoggingPolicy(RollingFileLogger? logger, VoiceBoothKiosk.Domain.KioskSettings settings)
     {

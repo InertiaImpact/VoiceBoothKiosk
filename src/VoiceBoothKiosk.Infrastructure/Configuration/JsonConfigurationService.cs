@@ -99,12 +99,52 @@ public sealed class JsonConfigurationService : IConfigurationService
         };
     }
 
-    private static KioskSettings Migrate(KioskSettings settings)
+    internal static KioskSettings Migrate(KioskSettings settings)
     {
         if (settings.SchemaVersion == 0) settings = settings with { SchemaVersion = 1 };
         if (settings.SchemaVersion > KioskSettings.CurrentSchemaVersion)
             throw new InvalidDataException($"Configuration schema {settings.SchemaVersion} is newer than this application supports.");
+
+        if (settings.SchemaVersion < 2)
+        {
+            var branding = settings.Branding ?? new BrandingSettings();
+            var blocks = (settings.ContentBlocks ?? []).ToList();
+            var firstSupportingText = string.IsNullOrWhiteSpace(branding.WelcomeSupportingText)
+                ? "Name your session, then record and review as many clips as you need."
+                : branding.WelcomeSupportingText;
+            InsertContentBlockAfter(
+                blocks,
+                "welcome.instructions",
+                new ContentBlock { Id = "welcome.supporting.1", Text = firstSupportingText, Style = "Supporting" });
+            InsertContentBlockAfter(
+                blocks,
+                "welcome.supporting.1",
+                new ContentBlock
+                {
+                    Id = "welcome.supporting.2",
+                    Text = "You can pause, review, and create additional clips before saving.",
+                    Style = "Supporting"
+                });
+            settings = settings with
+            {
+                SchemaVersion = 2,
+                Branding = branding with { WelcomeSupportingText = null },
+                ContentBlocks = blocks
+            };
+        }
         return settings;
+    }
+
+    private static void InsertContentBlockAfter(List<ContentBlock> blocks, string precedingId, ContentBlock block)
+    {
+        if (blocks.Any(existing => string.Equals(existing.Id, block.Id, StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+
+        var precedingIndex = blocks.FindIndex(existing =>
+            string.Equals(existing.Id, precedingId, StringComparison.OrdinalIgnoreCase));
+        blocks.Insert(precedingIndex < 0 ? blocks.Count : precedingIndex + 1, block);
     }
 
     private static KioskSettings Normalize(KioskSettings settings)
@@ -121,7 +161,7 @@ public sealed class JsonConfigurationService : IConfigurationService
         return settings with
         {
             SchemaVersion = KioskSettings.CurrentSchemaVersion,
-            Branding = settings.Branding with { LogoPath = logoPath },
+            Branding = settings.Branding with { LogoPath = logoPath, WelcomeSupportingText = null },
             Destinations = destinations
         };
     }

@@ -38,7 +38,6 @@ public static partial class KioskSettingsValidator
         {
             errors.Add(new("branding.applicationSubtitle", "Application subtitle cannot exceed 160 characters."));
         }
-
         ValidateColor(settings.Branding.PrimaryColor, "branding.primaryColor", errors);
         ValidateColor(settings.Branding.AccentColor, "branding.accentColor", errors);
         ValidateColor(settings.Branding.BackgroundColor, "branding.backgroundColor", errors);
@@ -99,6 +98,10 @@ public static partial class KioskSettingsValidator
                 string.Equals(destination.Id, settings.DefaultDestinationId, StringComparison.OrdinalIgnoreCase)))
         {
             errors.Add(new("defaultDestinationId", "The default destination must refer to an enabled destination."));
+        }
+        if (settings.SessionBehavior.SkipDestinationSelection && string.IsNullOrWhiteSpace(settings.DefaultDestinationId))
+        {
+            errors.Add(new("sessionBehavior.skipDestinationSelection", "Skipping destination selection requires an enabled default destination."));
         }
 
         var contentIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);

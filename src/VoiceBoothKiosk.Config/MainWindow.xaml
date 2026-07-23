@@ -56,29 +56,83 @@
                         <StackPanel>
                             <TextBlock Text="Identity" Style="{StaticResource SectionTitle}" />
                             <TextBlock Text="Application title" Style="{StaticResource FieldLabel}" />
-                            <TextBox Text="{Binding ApplicationTitle, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBox x:Name="ApplicationTitleTextBox"
+                                     Text="{Binding ApplicationTitle, UpdateSourceTrigger=PropertyChanged}" />
                             <TextBlock Text="Subtitle" Style="{StaticResource FieldLabel}" />
-                            <TextBox Text="{Binding ApplicationSubtitle, UpdateSourceTrigger=PropertyChanged}"
+                            <TextBox x:Name="ApplicationSubtitleTextBox"
+                                     Text="{Binding ApplicationSubtitle, UpdateSourceTrigger=PropertyChanged}"
                                      MaxLength="160"
                                      AutomationProperties.Name="Application subtitle" />
                             <TextBlock Text="Logo file" Style="{StaticResource FieldLabel}" />
                             <Grid>
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                <TextBox Text="{Binding LogoPath, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBox x:Name="LogoPathTextBox"
+                                         Text="{Binding LogoPath, UpdateSourceTrigger=PropertyChanged}"
+                                         IsReadOnly="True"
+                                         ToolTip="Use Browse to copy a logo into managed station storage." />
                                 <Button Grid.Column="1" Content="Browse…" Margin="8,4,0,12" Click="BrowseLogo_Click" />
                             </Grid>
-                            <TextBlock Text="The logo stays on the kiosk computer. SVG is not loaded as executable XAML." Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                            <TextBlock Text="PNG, JPG, BMP, GIF, and SVG are supported. The logo is copied locally; SVG is safely converted to a managed PNG." Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                            <TextBlock Text="Welcome identity preview (actual kiosk size)" Style="{StaticResource FieldLabel}" Margin="0,18,0,4" />
+                            <Border Background="{Binding ElementName=BackgroundColorPicker, Path=SelectedColor}"
+                                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                    CornerRadius="10" Padding="16" MinHeight="100">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Border Height="66" MinWidth="66" MaxWidth="220"
+                                            CornerRadius="18" Padding="6" VerticalAlignment="Center">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Background" Value="White" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding ElementName=PreviewLogoImage, Path=Source}" Value="{x:Null}">
+                                                        <Setter Property="Background" Value="{Binding ElementName=PrimaryColorPicker, Path=SelectedColor}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <Grid>
+                                            <TextBlock Text="VB" FontSize="25" FontWeight="Bold" Foreground="White"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding ElementName=PreviewLogoImage, Path=Source}" Value="{x:Null}">
+                                                                <Setter Property="Visibility" Value="Visible" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                            <Image x:Name="PreviewLogoImage"
+                                                   Source="{Binding ElementName=LogoPathTextBox, Path=Text}"
+                                                   Height="54" MaxWidth="208" Stretch="Uniform"
+                                                   HorizontalAlignment="Left" VerticalAlignment="Center" />
+                                        </Grid>
+                                    </Border>
+                                    <StackPanel Margin="18,0,0,0" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding ElementName=ApplicationTitleTextBox, Path=Text}"
+                                                   FontSize="29" FontWeight="Bold"
+                                                   Foreground="{Binding ElementName=BackgroundColorPicker, Path=SelectedColor, Converter={StaticResource ContrastTextBrushConverter}}" />
+                                        <TextBlock Text="{Binding ElementName=ApplicationSubtitleTextBox, Path=Text}"
+                                                   FontSize="15"
+                                                   Foreground="{Binding ElementName=PrimaryColorPicker, Path=SelectedColor}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
                         <StackPanel Grid.Column="2">
                             <TextBlock Text="Color palette" Style="{StaticResource SectionTitle}" />
                             <TextBlock Text="Primary color (#RRGGBB)" Style="{StaticResource FieldLabel}" />
-                            <controls:ColorPickerField FieldName="Primary color hexadecimal value"
+                            <controls:ColorPickerField x:Name="PrimaryColorPicker"
+                                                       FieldName="Primary color hexadecimal value"
                                                        SelectedColor="{Binding PrimaryColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                             <TextBlock Text="Record / accent color" Style="{StaticResource FieldLabel}" />
                             <controls:ColorPickerField FieldName="Record and accent color hexadecimal value"
                                                        SelectedColor="{Binding AccentColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                             <TextBlock Text="Background color" Style="{StaticResource FieldLabel}" />
-                            <controls:ColorPickerField FieldName="Background color hexadecimal value"
+                            <controls:ColorPickerField x:Name="BackgroundColorPicker"
+                                                       FieldName="Background color hexadecimal value"
                                                        SelectedColor="{Binding BackgroundColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                             <Border Height="70" Margin="0,8" CornerRadius="6" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Background="#F8FAFC">
                                 <TextBlock Text="Colors are validated when you save." VerticalAlignment="Center" HorizontalAlignment="Center" Foreground="{StaticResource MutedBrush}" />
@@ -97,7 +151,7 @@
                     </Grid.RowDefinitions>
                     <StackPanel>
                         <TextBlock Text="Reusable content blocks" Style="{StaticResource SectionTitle}" />
-                        <TextBlock Text="Built-in slots include welcome.instructions, welcome.session-name-help, privacy.notice, recording.instructions, devices.help, and session.end. Add any number of extra blocks using welcome.extra.*, recording.extra.*, devices.extra.*, or session.extra.*. Text is plain and safe; no XAML, HTML, scripts, or remote content is accepted."
+                        <TextBlock Text="Built-in slots include welcome.instructions, welcome.supporting.1, welcome.supporting.2, welcome.session-name-help, privacy.notice, recording.instructions, devices.help, and session.end. The two welcome.supporting rows appear as smaller stacked text below the welcome headline; clear or hide either row when it is not needed. Press Enter or type \n anywhere in an instruction to start a new display line. Add any number of extra blocks using welcome.extra.*, recording.extra.*, devices.extra.*, or session.extra.*. Text is plain and safe; no XAML, HTML, scripts, or remote content is accepted."
                                    Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,0,0,14" />
                     </StackPanel>
                     <DataGrid Grid.Row="1" ItemsSource="{Binding ContentBlocks}" SelectedItem="{Binding SelectedContentBlock}"
@@ -219,6 +273,11 @@
                             <TextBlock Text="Default clip name format" Style="{StaticResource FieldLabel}" />
                             <TextBox Text="{Binding DefaultClipNameFormat, UpdateSourceTrigger=PropertyChanged}" />
                             <TextBlock Text="Use {0} for the stable clip number, for example Clip {0}." Foreground="{StaticResource MutedBrush}" Margin="0,-8,0,12" />
+                            <CheckBox Content="Skip destination selection and save to the default destination"
+                                      IsChecked="{Binding SkipDestinationSelection}"
+                                      AutomationProperties.Name="Skip destination selection" />
+                            <TextBlock Text="End Session saves immediately to the enabled default destination and then shows the normal saved-files confirmation."
+                                       Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="24,-4,0,12" />
                             <TextBlock Text="Inactivity warning (minutes; 0 disables)" Style="{StaticResource FieldLabel}" />
                             <TextBox Text="{Binding InactivityWarningMinutes}" />
                             <TextBlock Text="Success screen duration (seconds; 0 requires Done)" Style="{StaticResource FieldLabel}" />
@@ -243,6 +302,31 @@
                             <TextBlock Text="Log retention (days)" Style="{StaticResource FieldLabel}" />
                             <TextBox Text="{Binding LogRetentionDays}" />
                             <CheckBox Content="Run audio hardware self-test at startup" IsChecked="{Binding RunHardwareSelfTestOnStartup}" />
+
+                            <Border Background="#F7F9FC" BorderBrush="{StaticResource BorderBrush}"
+                                    BorderThickness="1" CornerRadius="7" Padding="14" Margin="0,18,0,0">
+                                <StackPanel>
+                                    <TextBlock Text="Recorder readiness details" FontSize="16" FontWeight="SemiBold" />
+                                    <TextBlock x:Name="RuntimeSnapshotText" Foreground="{StaticResource MutedBrush}"
+                                               FontSize="11" Margin="0,2,0,10" />
+                                    <TextBlock Text="Overall" Style="{StaticResource FieldLabel}" />
+                                    <TextBlock x:Name="RuntimeOverallText" TextWrapping="Wrap" Margin="0,2,0,9" />
+                                    <TextBlock Text="Microphone" Style="{StaticResource FieldLabel}" />
+                                    <TextBlock x:Name="RuntimeInputText" TextWrapping="Wrap" Margin="0,2,0,9" />
+                                    <TextBlock Text="Local recording storage" Style="{StaticResource FieldLabel}" />
+                                    <TextBlock x:Name="RuntimeStorageText" TextWrapping="Wrap" Margin="0,2,0,9" />
+                                    <TextBlock Text="MP3 encoder" Style="{StaticResource FieldLabel}" />
+                                    <TextBlock x:Name="RuntimeEncoderText" TextWrapping="Wrap" Margin="0,2,0,9" />
+                                    <TextBlock Text="Launch mode" Style="{StaticResource FieldLabel}" />
+                                    <TextBlock x:Name="RuntimeLaunchText" TextWrapping="Wrap" Margin="0,2,0,10" />
+                                    <WrapPanel>
+                                        <Button Content="Create desktop shortcut" Click="CreateDesktopShortcut_Click"
+                                                AutomationProperties.Name="Create desktop shortcut" />
+                                        <Button Content="Open logs" Click="OpenLogs_Click" />
+                                        <Button Content="Copy details" Click="CopyDiagnostics_Click" />
+                                    </WrapPanel>
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
                     </Grid>
                 </ScrollViewer>

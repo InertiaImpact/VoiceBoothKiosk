@@ -176,6 +176,10 @@ public static partial class InfrastructureSettingsValidator
         if (string.IsNullOrWhiteSpace(settings.DefaultDestinationId))
         {
             Add(errors, "defaultDestinationId", "Choose a default enabled destination.");
+            if (settings.SessionBehavior?.SkipDestinationSelection == true)
+            {
+                Add(errors, "sessionBehavior.skipDestinationSelection", "Skipping destination selection requires an enabled default destination.");
+            }
         }
         else if (!enabled.Any(destination => string.Equals(destination.Id, settings.DefaultDestinationId, StringComparison.OrdinalIgnoreCase)))
         {

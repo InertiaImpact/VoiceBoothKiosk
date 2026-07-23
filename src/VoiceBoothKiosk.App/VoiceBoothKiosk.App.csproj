@@ -5,6 +5,7 @@
     <ProjectReference Include="..\VoiceBoothKiosk.Application\VoiceBoothKiosk.Application.csproj" />
     <ProjectReference Include="..\VoiceBoothKiosk.Infrastructure\VoiceBoothKiosk.Infrastructure.csproj" />
     <ProjectReference Include="..\VoiceBoothKiosk.Audio.Windows\VoiceBoothKiosk.Audio.Windows.csproj" />
+    <ProjectReference Include="..\VoiceBoothKiosk.Supervision\VoiceBoothKiosk.Supervision.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

@@ -118,6 +118,10 @@ public interface IAudioDeviceService : IAsyncDisposable
         IProgress<float> levelProgress,
         CancellationToken cancellationToken = default);
     Task<AudioDeviceTestResult> TestOutputAsync(AudioDeviceSelection selection, CancellationToken cancellationToken = default);
+    Task<float?> GetInputGainAsync(AudioDeviceSelection selection, CancellationToken cancellationToken = default) =>
+        Task.FromResult<float?>(null);
+    Task SetInputGainAsync(AudioDeviceSelection selection, float gain, CancellationToken cancellationToken = default) =>
+        Task.FromException(new NotSupportedException("Input gain control is not available for this audio service."));
     Task<float?> GetOutputVolumeAsync(AudioDeviceSelection selection, CancellationToken cancellationToken = default) =>
         Task.FromResult<float?>(null);
     Task SetOutputVolumeAsync(AudioDeviceSelection selection, float volume, CancellationToken cancellationToken = default) =>

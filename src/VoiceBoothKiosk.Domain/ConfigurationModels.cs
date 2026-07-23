@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace VoiceBoothKiosk.Domain;
 
 public sealed record DestinationPreset
@@ -22,6 +24,10 @@ public sealed record BrandingSettings
 {
     public string ApplicationTitle { get; init; } = "Voice Booth";
     public string ApplicationSubtitle { get; init; } = "Walk-up recording studio";
+    // Read-only compatibility bridge for schema-1 settings. Migration moves this
+    // value into welcome.supporting.1 and clears it before settings are saved.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? WelcomeSupportingText { get; init; }
     public string? LogoPath { get; init; }
     public string PrimaryColor { get; init; } = "#4CC9F0";
     public string AccentColor { get; init; } = "#F0445A";
@@ -52,6 +58,7 @@ public sealed record AudioSettings
 public sealed record SessionBehaviorSettings
 {
     public string DefaultClipNameFormat { get; init; } = "Clip {0}";
+    public bool SkipDestinationSelection { get; init; }
     public int InactivityWarningMinutes { get; init; } = 15;
     public int RecoveryAlertDays { get; init; } = 7;
     public int SuccessfulRecoveryRetentionHours { get; init; } = 24;
@@ -86,7 +93,7 @@ public sealed record DiagnosticsSettings
 /// <summary>Versioned, JSON-friendly settings shared by the kiosk and administrator app.</summary>
 public sealed record KioskSettings
 {
-    public const int CurrentSchemaVersion = 1;
+    public const int CurrentSchemaVersion = 2;
 
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
     public string ApplicationVersion { get; init; } = "1.0.0";
@@ -107,6 +114,8 @@ public sealed record KioskSettings
     private static IReadOnlyList<ContentBlock> DefaultContentBlocks() =>
     [
         new() { Id = "welcome.instructions", Text = "Enter a session name to begin." },
+        new() { Id = "welcome.supporting.1", Text = "Name your session, then record and review as many clips as you need.", Style = "Supporting" },
+        new() { Id = "welcome.supporting.2", Text = "You can pause, review, and create additional clips before saving.", Style = "Supporting" },
         new() { Id = "welcome.session-name-help", Text = "Suggested format: Name-topic", Style = "Help" },
         new() { Id = "recording.instructions", Text = "Press Record when you are ready." },
         new() { Id = "devices.help", Text = "Choose the microphone and headphones for this session.", Style = "Help" },

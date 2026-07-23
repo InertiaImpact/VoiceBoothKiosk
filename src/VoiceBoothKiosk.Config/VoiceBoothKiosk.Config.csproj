@@ -5,6 +5,10 @@
     <ProjectReference Include="..\VoiceBoothKiosk.Infrastructure\VoiceBoothKiosk.Infrastructure.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="SharpVectors.Wpf" Version="1.8.5" />
+  </ItemGroup>
+
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>

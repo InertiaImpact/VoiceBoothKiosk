@@ -9,12 +9,13 @@ Voice Booth Kiosk is a Windows 11 walk-up audio recorder designed for a full-scr
 - Record/pause/resume recording, playback pause-to-edit, seek, and return-to-start
 - Audacity-inspired live waveform, timeline, playhead, drag-to-measure time selections, and input meter
 - Multiple clips with selection, custom naming, rename pencil, deletion, undo-capable storage, New Clip, and New Take
-- Persistent input/output device selection and device tests
+- Persistent input/output device selection, continuous microphone and speaker tests, playback-volume control, and driver-supported Windows microphone gain control
 - Local lossless WAV segments, atomic manifests, and automatic repair of structurally valid interrupted WAVs
 - Guided End Session flow with destination selection and filename preview; an empty walk-away session can be ended without creating an export folder
+- Optional streamlined End Session behavior that skips the picker, saves to the configured default destination, and shows the normal saved-files confirmation
 - Transactional 128 kbps Media Foundation MP3 export plus matching lossless WAV archival, with exact-profile preflight, collision protection, and output validation
 - A durable hidden export receipt that prevents a restart after destination commit from creating a duplicate session folder
-- Small top-right Audio Devices and Settings icons, with an ungated editor for instructions, title/subtitle branding, visual color selection, destinations, policies, accessibility, retention, and audio defaults
+- Small top-right Audio Devices and Settings icons, with an ungated editor for instructions, title/subtitle branding, actual-scale identity preview, aspect-aware PNG/JPG/BMP/GIF/SVG logos, in-line and pop-up visual color selection, two stacked welcome supporting blocks, destinations, policies, accessibility, retention, audio defaults, live recorder-readiness details, log access, and launch-mode-aware desktop shortcut creation; instruction text accepts Enter or literal `\n` line breaks
 - Portable ZIP preset import/export for copying the complete validated configuration, colors, content, and an embedded logo between stations
 - Versioned JSON settings, rolling logs, recovery quarantine, free-space checks, inactivity privacy timeout, and single-instance enforcement
 - Windows Shell Launcher deployment guidance
@@ -40,7 +41,7 @@ dotnet run --project src\VoiceBoothKiosk.App\VoiceBoothKiosk.App.csproj -- --win
 
 `--windowed` makes the recorder resizable and closable for development. Production launches without that switch.
 
-For a simpler auto-login deployment that retains the normal Windows desktop underneath the recorder, launch with `--supervised-kiosk`. This forces borderless full-screen and always-on-top behavior, shows a faint four-second hold-to-exit X, and continues to reject ordinary Alt+F4 close requests. It is operational convenience, not Windows lockdown.
+For a simpler auto-login deployment that retains the normal Windows desktop underneath the recorder, launch with `--supervised-kiosk`. This starts a hidden helper plus the visible recorder. The helper checks every two minutes, restoring and foregrounding the full-screen recorder when it is running and relaunching it two minutes after an unexpected exit. Completing the faint four-second hold-to-exit X sends an intentional exit signal and closes both processes without a relaunch. Alt+F4 remains blocked. This is operational convenience, not Windows lockdown.
 
 Press and hold the small **Settings** gear in the top-right of the welcome screen or stopped-session toolbar for four seconds to open the configuration editor. Releasing or moving away early cancels the hold. The editor intentionally has no password prompt and runs without elevation. You can also launch it directly during development:
 
@@ -65,7 +66,9 @@ Do not point those variables at production data. They are intended for developme
 | `VoiceBoothKiosk` | Public full-screen recorder; runs as a standard kiosk user |
 | `VoiceBoothKiosk.Config` | Ungated settings editor launched by the recorder; runs as the current user without UAC elevation |
 
-The editor's **Destinations** tab can add save roots, browse to a folder, test that the selected root is writable, enable or remove entries, and choose the default. Choosing a logo copies it into the station's managed `config\assets` folder, so the branding does not depend on the original file remaining connected. The bottom-row **Import preset...** and **Export preset...** controls transfer the complete configuration and embed that logo in a portable `.voicebooth.zip` package. Import fills the editor but does not activate the preset until **Save and apply** is selected, leaving an opportunity to review station-specific devices and destinations. Closing the editor reloads the recorder automatically. For a stopped active session, new destinations apply immediately while its recording format, device snapshot, and clip-name format remain frozen. The recorder otherwise persists permitted input/output choices in the kiosk user's LocalAppData.
+The editor's **Destinations** tab can add save roots, browse to a folder, test that the selected root is writable, enable or remove entries, and choose the default. Choosing a logo copies it into the station's managed `config\assets` folder, so the branding does not depend on the original file remaining connected; selected SVG artwork is checked for active/external content and converted once to a static PNG. The bottom-row **Import preset...** and **Export preset...** controls transfer the complete configuration and embed that logo in a portable `.voicebooth.zip` package. Import fills the editor but does not activate the preset until **Save and apply** is selected, leaving an opportunity to review station-specific devices and destinations. Closing the editor reloads the recorder automatically. For a stopped active session, new destinations apply immediately while its recording format, device snapshot, and clip-name format remain frozen. The recorder otherwise persists permitted input/output choices in the kiosk user's LocalAppData.
+
+The **Sessions & recovery** tab shows the recorder's most recent microphone, local-storage, and MP3-encoder readiness snapshot when Settings is opened from the recorder. It can open the log folder, copy a diagnostic summary, or create a current-user Desktop shortcut that preserves the active public launch mode (`--windowed`, `--supervised-kiosk`, or standard).
 
 ## Runtime data
 
@@ -121,6 +124,16 @@ Run:
 The script restores, tests, and publishes self-contained `win-x64` recorder and configuration folders under `artifacts\publish`. No installer is required: keep the `recorder` and adjacent `config` folders intact and launch `artifacts\publish\recorder\VoiceBoothKiosk.exe`. Code-sign the executables and installer before production deployment.
 
 Use `-OutputRoot <path>` to publish elsewhere or `-SkipTests` only when tests already passed for the exact commit being packaged. The publish folders are `recorder` and `config`; install both so the recorder's Settings button can open the editor.
+
+## Installer package
+
+After a verified publish, build the Windows installation deliverables with:
+
+```powershell
+.\deployment\Build-Installer.ps1 -SkipPublish
+```
+
+This creates a one-file interactive Setup EXE, a ZIP bundle for scripted deployment, and SHA-256 checksums under `artifacts\installer`. By default the installer places the self-contained applications under `C:\Program Files\VoiceBoothKiosk` and registers supervised full-screen mode at logon for the account that launched Setup before elevation. For in-place upgrades it temporarily disables the supervised task, stops running Voice Booth and Settings processes, replaces the binaries, and restarts supervised mode when it was previously running. It preserves ProgramData configuration and all per-user recording/recovery data during upgrades and normal uninstall. See [deployment/installer/INSTALL.md](deployment/installer/INSTALL.md).
 
 ## Kiosk deployment
 

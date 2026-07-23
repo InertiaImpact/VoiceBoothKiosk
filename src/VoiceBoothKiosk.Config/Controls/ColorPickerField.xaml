@@ -15,6 +15,37 @@
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Cursor" Value="Hand" />
         </Style>
+        <Style x:Key="CurrentSwatchButton" TargetType="Button">
+            <Setter Property="Width" Value="44" />
+            <Setter Property="Height" Value="36" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Margin" Value="8,4,0,12" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="BorderThickness" Value="2" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Chrome"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="5" />
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="#17212B" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Chrome" Property="Opacity" Value="0.72" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="#246BCE" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </UserControl.Resources>
 
     <Grid>
@@ -32,24 +63,14 @@
 
         <Button x:Name="SwatchButton"
                 Grid.Column="1"
-                Width="44"
-                Height="36"
-                MinHeight="0"
-                Margin="8,4,0,12"
-                Padding="4"
-                HorizontalContentAlignment="Stretch"
-                VerticalContentAlignment="Stretch"
-                Background="White"
+                Style="{StaticResource CurrentSwatchButton}"
+                Background="{Binding CurrentBrush, ElementName=Root}"
                 BorderBrush="{Binding CurrentBorderBrush, ElementName=Root}"
                 BorderThickness="2"
                 Click="SwatchButton_Click"
                 ToolTip="{Binding CurrentColorDescription, ElementName=Root}"
-                automation:AutomationProperties.Name="Open visual color picker">
-            <Border Background="{Binding CurrentBrush, ElementName=Root}"
-                    BorderBrush="#667085"
-                    BorderThickness="1"
-                    CornerRadius="3" />
-        </Button>
+                automation:AutomationProperties.Name="Open visual color picker"
+                automation:AutomationProperties.ItemStatus="{Binding CurrentColorDescription, ElementName=Root}" />
 
         <Popup x:Name="PickerPopup"
                Placement="Bottom"

@@ -172,10 +172,10 @@ public sealed class ConfigurationPresetService
             throw new InvalidDataException("The preset was not created by a supported Voice Booth version.");
         }
 
-        var portableSettings = manifest.Settings with
+        var portableSettings = JsonConfigurationService.Migrate(manifest.Settings with
         {
             Branding = manifest.Settings.Branding with { LogoPath = null }
-        };
+        });
         ValidateSettings(portableSettings);
 
         string? installedLogoPath = null;

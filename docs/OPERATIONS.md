@@ -63,11 +63,15 @@ If a microphone is unplugged or invalidated:
 - Continue recording after the app returns to Ready.
 - Do not assume the interrupted segment contains a complete take; play it back after recovery.
 
+The Audio Devices drawer also exposes **Microphone gain / level** when the selected Windows capture endpoint supports software level control. Start the microphone test and adjust the slider while speaking normally. Windows retains the endpoint level for that device. Professional USB interfaces, mixers, and some drivers expose gain only through physical controls or their own control software; the recorder disables the slider and reports that condition rather than applying digital amplification after capture.
+
 ## Configuration editor
 
 Press and hold the small top-right **Settings** gear for four seconds on the welcome screen or while a session is stopped. A progress line under the icon shows the hold and releasing, moving away, or losing focus early cancels it. A completed hold opens `VoiceBoothKiosk.Config.exe` without a password or UAC elevation prompt; the editor is intentionally ungated. It can also be launched directly while servicing the workstation.
 
 Configuration changes are validated before atomic save. The previous known-good JSON remains available as a backup if a write is interrupted. The Branding tab includes editable hex values plus a lightweight visual picker with presets and RGB sliders. Selecting a logo immediately copies it into the machine configuration's managed `assets` folder; the original USB, share, or source file can then be removed without breaking the logo. The setting is not activated until **Save and apply** is selected. When the editor closes, the recorder reloads saved settings. During a stopped active session, destination, appearance, and live-policy changes can apply immediately; its audio/device and clip-name snapshot remains unchanged until the next session.
+
+The **Sessions & recovery** tab includes a timestamped readiness snapshot from the recorder: overall state, selected microphone availability, local free-space result, and MP3 encoder result. Use **Copy details** when escalating a Start Session problem or **Open logs** for the JSON Lines log folder. **Create desktop shortcut** writes `Voice Booth Kiosk.lnk` to the current kiosk account's Desktop and preserves the mode that opened Settings. In supervised mode it targets the supervisor entry point (`--supervised-kiosk`), never the internal watchdog-child switch.
 
 To copy a setup between stations:
 
@@ -124,9 +128,11 @@ Never replace binaries while a recording or export is active.
 
 ## Supervised auto-login deployment
 
-For a station that only needs automatic sign-in and a full-screen recorder over the normal Windows desktop, launch `VoiceBoothKiosk.exe --supervised-kiosk` from the kiosk account's Startup folder. The switch forces borderless full-screen and always-on-top behavior even if those two visual settings were disabled previously. It also enables a faint top-right X that requires a continuous four-second hold. A normal click, early release, pointer departure, or focus loss does not exit, and Alt+F4 remains blocked.
+For a station that only needs automatic sign-in and a full-screen recorder over the normal Windows desktop, launch `VoiceBoothKiosk.exe --supervised-kiosk` from the kiosk account's Startup folder. The switch starts a hidden supervisor and a visible recorder, so two `VoiceBoothKiosk.exe` processes are expected. The recorder is forced borderless, full-screen, and always on top even if those visual settings were disabled previously. Every two minutes, the supervisor restores, maximizes, and foregrounds a visible recorder window. An unexpected recorder exit is relaunched after two minutes.
 
-Run `deployment\Install-SupervisedKioskStartup.ps1` while signed in as the intended account to create the shortcut. This is a supervised presentation mode, not hardened kiosk security; Windows shortcuts and other OS entry points remain available unless Windows policies restrict them.
+Supervised mode also enables a faint top-right X that requires a continuous four-second hold. Completing that hold closes the recorder with the supervisor's intentional-exit code, which causes the hidden supervisor to close without relaunching. A normal click, early release, pointer departure, or focus loss does not exit, and Alt+F4 remains blocked.
+
+Run `deployment\Install-SupervisedKioskStartup.ps1` while signed in as the intended account to create the shortcut. This is a supervised presentation mode, not hardened kiosk security; Windows shortcuts and other OS entry points remain available unless Windows policies restrict them. If someone terminates both processes, or terminates the hidden supervisor first, application-level relaunch is no longer available until the Startup shortcut runs again.
 
 ## Build and publish verification
 
@@ -137,6 +143,9 @@ dotnet restore VoiceBoothKiosk.sln
 dotnet build VoiceBoothKiosk.sln --configuration Release --no-restore
 dotnet test tests\VoiceBoothKiosk.Tests\VoiceBoothKiosk.Tests.csproj --configuration Release --no-build --no-restore
 .\deployment\Publish.ps1
+.\deployment\Build-Installer.ps1 -SkipPublish
 ```
+
+Installer outputs are written under `artifacts\installer`: an interactive Setup EXE, a scripted ZIP bundle, and `SHA256SUMS.txt`. The default install registers the supervised logon task for the account that started Setup before UAC elevation. Automatic Windows sign-in remains a separate operating-system configuration. An in-place upgrade disables and stops the existing supervised task, closes or force-stops remaining Voice Booth processes, replaces the application files, and restarts supervised mode if it was running beforehand. If replacement fails, the installer attempts to restore the previous task state. Normal upgrades and uninstall preserve ProgramData configuration and per-user recording/recovery data.
 
 `Publish.ps1` performs its own restore and, unless `-SkipTests` is supplied, a Release test run. It then publishes self-contained, untrimmed `win-x64` folders to `artifacts\publish\recorder` and `artifacts\publish\config`. Run a hardware capture/playback/export smoke test against those published files before signing and deployment.

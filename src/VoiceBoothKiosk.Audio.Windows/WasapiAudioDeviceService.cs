@@ -2,6 +2,7 @@ using NAudio.CoreAudioApi;
 using NAudio.CoreAudioApi.Interfaces;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
+using System.Runtime.InteropServices;
 using VoiceBoothKiosk.Application;
 using VoiceBoothKiosk.Domain;
 
@@ -359,6 +360,45 @@ public sealed class WasapiAudioDeviceService : IAudioDeviceService, IDisposable
 
         using var device = OpenEndpoint(AudioEndpointKind.Output, selection.EndpointId, selection.UseDefault);
         return Task.FromResult<float?>(device.AudioEndpointVolume.MasterVolumeLevelScalar);
+    }
+
+    public Task<float?> GetInputGainAsync(
+        AudioDeviceSelection selection,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(selection);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (selection.Flow != AudioDeviceFlow.Input)
+        {
+            throw new ArgumentException("The selection is not an input device.", nameof(selection));
+        }
+
+        try
+        {
+            using var device = OpenEndpoint(AudioEndpointKind.Input, selection.EndpointId, selection.UseDefault);
+            return Task.FromResult<float?>(device.AudioEndpointVolume.MasterVolumeLevelScalar);
+        }
+        catch (Exception exception) when (exception is COMException or NotSupportedException)
+        {
+            return Task.FromResult<float?>(null);
+        }
+    }
+
+    public Task SetInputGainAsync(
+        AudioDeviceSelection selection,
+        float gain,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(selection);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (selection.Flow != AudioDeviceFlow.Input)
+        {
+            throw new ArgumentException("The selection is not an input device.", nameof(selection));
+        }
+
+        using var device = OpenEndpoint(AudioEndpointKind.Input, selection.EndpointId, selection.UseDefault);
+        device.AudioEndpointVolume.MasterVolumeLevelScalar = Math.Clamp(gain, 0, 1);
+        return Task.CompletedTask;
     }
 
     public Task SetOutputVolumeAsync(

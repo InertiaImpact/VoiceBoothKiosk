@@ -20,7 +20,9 @@ For a staffed or otherwise supervised station, Shell Launcher and Keyboard Filte
 C:\Program Files\VoiceBoothKiosk\recorder\VoiceBoothKiosk.exe --supervised-kiosk
 ```
 
-This switch forces the window borderless, full-screen, and always on top. It also shows a faint X beside the top-right Settings gear. A normal click does nothing; pressing continuously for four seconds fills its progress line and closes the recorder to the normal Explorer desktop. Releasing, moving away, or losing focus cancels the exit. Alt+F4 remains blocked.
+This switch starts a hidden supervisor process and a visible recorder process. The recorder is forced borderless, full-screen, and always on top. Every two minutes, the supervisor restores, maximizes, and foregrounds a visible recorder window. If the recorder exits unexpectedly, the supervisor waits two minutes and relaunches it; a recoverable active session is then offered through the normal startup recovery flow.
+
+The recorder also shows a faint X beside the top-right Settings gear. A normal click does nothing; pressing continuously for four seconds fills its progress line and sends the supervisor an intentional-exit code, closing both processes to the normal Explorer desktop without a relaunch. Releasing, moving away, or losing focus cancels the exit. Alt+F4 remains blocked. Seeing two `VoiceBoothKiosk.exe` processes in this mode is expected.
 
 While signed in as the intended kiosk account, the included helper can create that account's Startup-folder shortcut:
 
@@ -34,12 +36,12 @@ Remove it from the same account with:
 .\deployment\Install-SupervisedKioskStartup.ps1 -Remove
 ```
 
-The supervised mode doesn't block task switching, Windows shortcuts, Task Manager, notifications, or access to other applications. Use the Shell Launcher procedure below when the public must not be able to reach Windows.
+The supervised mode doesn't block task switching, Windows shortcuts, Task Manager, notifications, or access to other applications. Ending the hidden supervisor process also defeats its relaunch behavior. Use the Shell Launcher procedure below when the public must not be able to reach Windows.
 
 ## Deployment sequence
 
-1. Publish the release with `deployment\Publish.ps1`.
-2. Code-sign and package the output.
+1. Publish the release with `deployment\Publish.ps1` and build install artifacts with `deployment\Build-Installer.ps1 -SkipPublish`.
+2. Code-sign the application files and Setup package, then regenerate distribution hashes.
 3. Install the recorder and configuration editor where the kiosk account can read and execute both applications.
 4. Sign in once as the kiosk account and verify the microphone, output, local work directory, and each approved export destination.
 5. Select **Settings** on the welcome screen and save the kiosk configuration. The editor intentionally runs as the current user and has no password or elevation prompt.

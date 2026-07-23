@@ -8,6 +8,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using VoiceBoothKiosk.App.ViewModels;
+using VoiceBoothKiosk.Supervision;
 
 namespace VoiceBoothKiosk.App;
 
@@ -436,7 +437,14 @@ public partial class MainWindow : Window
         if (action == ProtectedHoldAction.Exit)
         {
             _administratorExitRequested = true;
-            Close();
+            if (SupervisedModeArguments.IsWatchdogChild(Environment.GetCommandLineArgs()))
+            {
+                System.Windows.Application.Current.Shutdown(SupervisedModeWatchdog.IntentionalExitCode);
+            }
+            else
+            {
+                Close();
+            }
             return;
         }
         await OpenConfigurationAfterHoldAsync();

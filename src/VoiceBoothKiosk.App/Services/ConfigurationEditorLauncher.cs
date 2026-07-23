@@ -1,20 +1,29 @@
 using System.Diagnostics;
 using System.IO;
+using VoiceBoothKiosk.Domain;
 
 namespace VoiceBoothKiosk.App.Services;
 
 public interface IConfigurationEditorLauncher
 {
-    Task OpenAsync(CancellationToken cancellationToken = default);
+    Task OpenAsync(RecorderReadinessDetails readiness, CancellationToken cancellationToken = default);
 }
+
+public sealed record RecorderReadinessDetails(
+    bool IsReady,
+    string OverallStatus,
+    string InputStatus,
+    string StorageStatus,
+    string EncoderStatus);
 
 /// <summary>Locates and opens the companion configuration editor, then waits for it to close.</summary>
 public sealed class ConfigurationEditorLauncher : IConfigurationEditorLauncher
 {
     private const string ExecutableName = "VoiceBoothKiosk.Config.exe";
 
-    public async Task OpenAsync(CancellationToken cancellationToken = default)
+    public async Task OpenAsync(RecorderReadinessDetails readiness, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(readiness);
         var executablePath = FindExecutable();
         if (executablePath is null)
         {
@@ -23,13 +32,28 @@ public sealed class ConfigurationEditorLauncher : IConfigurationEditorLauncher
                 "or set VOICEBOOTH_CONFIG_EXE to its full path.");
         }
 
+        var publicLaunch = RecorderRuntimeContext.GetPublicLaunchMode(Environment.GetCommandLineArgs().Skip(1));
+        var runtimeContext = new RecorderRuntimeContext
+        {
+            CapturedAtUtc = DateTimeOffset.UtcNow,
+            IsReady = readiness.IsReady,
+            OverallStatus = readiness.OverallStatus,
+            InputStatus = readiness.InputStatus,
+            StorageStatus = readiness.StorageStatus,
+            EncoderStatus = readiness.EncoderStatus,
+            RecorderExecutablePath = Environment.ProcessPath ?? string.Empty,
+            RecorderArguments = publicLaunch.Arguments,
+            LaunchMode = publicLaunch.Mode
+        };
+
         var startInfo = new ProcessStartInfo
         {
             FileName = executablePath,
             WorkingDirectory = Path.GetDirectoryName(executablePath) ?? AppContext.BaseDirectory,
-            Arguments = "--opened-from-recorder",
-            UseShellExecute = true
+            UseShellExecute = false
         };
+        startInfo.ArgumentList.Add("--opened-from-recorder");
+        startInfo.Environment[RecorderRuntimeContext.EnvironmentVariableName] = runtimeContext.ToEnvironmentValue();
 
         using var process = Process.Start(startInfo)
             ?? throw new InvalidOperationException("The configuration editor could not be started.");

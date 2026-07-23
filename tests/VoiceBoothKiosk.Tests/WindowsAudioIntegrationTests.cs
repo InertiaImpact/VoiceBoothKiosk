@@ -117,6 +117,14 @@ public sealed class WindowsAudioIntegrationTests : IDisposable
         Assert.Equal("Audio-integration_01_07162026.wav", Path.GetFileName(rawWave));
         Assert.DoesNotContain(Directory.EnumerateDirectories(destinationRoot),
             path => Path.GetFileName(path).StartsWith(".voicebooth-", StringComparison.OrdinalIgnoreCase));
+        var mp3Header = new byte[4];
+        using (var headerReader = File.OpenRead(mp3))
+        {
+            Assert.Equal(mp3Header.Length, headerReader.Read(mp3Header));
+        }
+        Assert.Equal(0xFF, mp3Header[0]);
+        Assert.Equal(0xE0, mp3Header[1] & 0xE0);
+        Assert.Equal(0x01, (mp3Header[1] >> 1) & 0x03);
         using var reader = new Mp3FileReader(mp3);
         Assert.InRange(reader.TotalTime.TotalMilliseconds, 900, 1_150);
         using (var rawReader = new WaveFileReader(rawWave))
@@ -143,6 +151,48 @@ public sealed class WindowsAudioIntegrationTests : IDisposable
             [Guid.NewGuid()],
             [request.Destination]);
         Assert.Null(changedSession);
+    }
+
+    [Fact]
+    public void Mp3_compatibility_sanitizer_removes_only_the_leading_id3v2_block()
+    {
+        Directory.CreateDirectory(_root);
+        var path = Path.Combine(_root, "tagged.mp3");
+        byte[] audioFrames =
+        [
+            0xFF, 0xFB, 0x94, 0xC0,
+            0x10, 0x20, 0x30, 0x40,
+            0x50, 0x60, 0x70, 0x80
+        ];
+        byte[] taggedFile =
+        [
+            (byte)'I', (byte)'D', (byte)'3', 0x03, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x04,
+            0xDE, 0xAD, 0xBE, 0xEF,
+            .. audioFrames
+        ];
+        File.WriteAllBytes(path, taggedFile);
+
+        var changed = Mp3CompatibilitySanitizer.RemoveLeadingId3v2Tag(path);
+
+        Assert.True(changed);
+        Assert.Equal(audioFrames, File.ReadAllBytes(path));
+        Assert.DoesNotContain(Directory.EnumerateFiles(_root), candidate =>
+            Path.GetFileName(candidate).EndsWith(".sanitizing", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Mp3_compatibility_sanitizer_preserves_an_already_tagless_file()
+    {
+        Directory.CreateDirectory(_root);
+        var path = Path.Combine(_root, "tagless.mp3");
+        byte[] original = [0xFF, 0xFB, 0x94, 0xC0, 0x01, 0x02, 0x03, 0x04];
+        File.WriteAllBytes(path, original);
+
+        var changed = Mp3CompatibilitySanitizer.RemoveLeadingId3v2Tag(path);
+
+        Assert.False(changed);
+        Assert.Equal(original, File.ReadAllBytes(path));
     }
 
     [Fact]

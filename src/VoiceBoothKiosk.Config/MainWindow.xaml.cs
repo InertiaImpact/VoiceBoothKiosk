@@ -1,8 +1,10 @@
 using Microsoft.Win32;
+using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Media;
 using VoiceBoothKiosk.Application;
+using VoiceBoothKiosk.Domain;
 using VoiceBoothKiosk.Infrastructure.Configuration;
 using VoiceBoothKiosk.Infrastructure.Storage;
 
@@ -13,6 +15,8 @@ public partial class MainWindow : Window
     private readonly JsonConfigurationService _configuration;
     private readonly ConfigurationPresetService _presets;
     private readonly ManagedLogoService _logos;
+    private readonly ApplicationPaths _paths;
+    private readonly RecorderRuntimeContext _runtimeContext;
     private SettingsEditorViewModel? _viewModel;
 
     public MainWindow()
@@ -20,12 +24,96 @@ public partial class MainWindow : Window
         InitializeComponent();
         var machineRoot = Environment.GetEnvironmentVariable("VOICEBOOTH_MACHINE_DATA_ROOT");
         var localRoot = Environment.GetEnvironmentVariable("VOICEBOOTH_LOCAL_DATA_ROOT");
-        var paths = new ApplicationPaths(machineRoot, localRoot);
-        _configuration = new JsonConfigurationService(paths);
-        _presets = new ConfigurationPresetService(paths);
-        _logos = new ManagedLogoService(paths);
+        _paths = new ApplicationPaths(machineRoot, localRoot);
+        _configuration = new JsonConfigurationService(_paths);
+        _presets = new ConfigurationPresetService(_paths);
+        _logos = new ManagedLogoService(_paths);
+        _runtimeContext = ResolveRuntimeContext();
         ConfigPathText.Text = _configuration.Paths.MachineSettingsPath;
+        ShowRuntimeContext();
         Loaded += async (_, _) => await ReloadAsync();
+    }
+
+    private void ShowRuntimeContext()
+    {
+        RuntimeSnapshotText.Text = _runtimeContext.CapturedAtUtc == DateTimeOffset.MinValue
+            ? "Live status is available when Settings is opened from the recorder."
+            : $"Checked {_runtimeContext.CapturedAtUtc.ToLocalTime():g}";
+        RuntimeOverallText.Text = _runtimeContext.OverallStatus;
+        RuntimeOverallText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(
+            _runtimeContext.IsReady ? "#176B45" : "#B42318"));
+        RuntimeInputText.Text = _runtimeContext.InputStatus;
+        RuntimeStorageText.Text = _runtimeContext.StorageStatus;
+        RuntimeEncoderText.Text = _runtimeContext.EncoderStatus;
+        RuntimeLaunchText.Text = string.IsNullOrWhiteSpace(_runtimeContext.RecorderExecutablePath)
+            ? $"{_runtimeContext.LaunchMode} — recorder executable was not found"
+            : $"{_runtimeContext.LaunchMode}{(string.IsNullOrWhiteSpace(_runtimeContext.RecorderArguments) ? string.Empty : $" ({_runtimeContext.RecorderArguments})")}\n{_runtimeContext.RecorderExecutablePath}";
+    }
+
+    private void CreateDesktopShortcut_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var shortcutPath = DesktopShortcutService.Create(
+                _runtimeContext.RecorderExecutablePath,
+                _runtimeContext.RecorderArguments);
+            SetStatus("Desktop shortcut created", shortcutPath, isError: false);
+        }
+        catch (Exception exception)
+        {
+            SetStatus("Desktop shortcut was not created", exception.Message, isError: true);
+        }
+    }
+
+    private void OpenLogs_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            Directory.CreateDirectory(_paths.LogDirectory);
+            Process.Start(new ProcessStartInfo { FileName = _paths.LogDirectory, UseShellExecute = true });
+            SetStatus("Log folder opened", _paths.LogDirectory, isError: false);
+        }
+        catch (Exception exception)
+        {
+            SetStatus("Log folder could not be opened", exception.Message, isError: true);
+        }
+    }
+
+    private void CopyDiagnostics_Click(object sender, RoutedEventArgs e)
+    {
+        var details = $"Voice Booth recorder diagnostics{Environment.NewLine}" +
+                      $"Checked: {(_runtimeContext.CapturedAtUtc == DateTimeOffset.MinValue ? "not available" : _runtimeContext.CapturedAtUtc.ToLocalTime().ToString("O"))}{Environment.NewLine}" +
+                      $"Overall: {_runtimeContext.OverallStatus}{Environment.NewLine}" +
+                      $"Microphone: {_runtimeContext.InputStatus}{Environment.NewLine}" +
+                      $"Storage: {_runtimeContext.StorageStatus}{Environment.NewLine}" +
+                      $"MP3 encoder: {_runtimeContext.EncoderStatus}{Environment.NewLine}" +
+                      $"Launch: {_runtimeContext.LaunchMode} {_runtimeContext.RecorderArguments}{Environment.NewLine}" +
+                      $"Recorder: {_runtimeContext.RecorderExecutablePath}{Environment.NewLine}" +
+                      $"Logs: {_paths.LogDirectory}";
+        Clipboard.SetText(details);
+        SetStatus("Diagnostic details copied", "The readiness snapshot and log location are on the clipboard.", isError: false);
+    }
+
+    private static RecorderRuntimeContext ResolveRuntimeContext()
+    {
+        var fromRecorder = RecorderRuntimeContext.FromEnvironment();
+        if (fromRecorder is not null)
+        {
+            return fromRecorder;
+        }
+
+        var adjacentRecorder = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "recorder", "VoiceBoothKiosk.exe"));
+        return new RecorderRuntimeContext
+        {
+            CapturedAtUtc = DateTimeOffset.MinValue,
+            IsReady = false,
+            OverallStatus = "Recorder status unavailable. Open Settings from the recorder for a live readiness check.",
+            InputStatus = "Not checked",
+            StorageStatus = "Not checked",
+            EncoderStatus = "Not checked",
+            RecorderExecutablePath = File.Exists(adjacentRecorder) ? adjacentRecorder : string.Empty,
+            LaunchMode = "Standard"
+        };
     }
 
     private async Task ReloadAsync()
@@ -189,21 +277,38 @@ public partial class MainWindow : Window
         var dialog = new OpenFileDialog
         {
             Title = "Choose a local logo image",
-            Filter = "Image files|*.png;*.jpg;*.jpeg;*.bmp;*.gif|All files|*.*",
+            Filter = "Logo image files|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.svg|SVG files|*.svg|Raster image files|*.png;*.jpg;*.jpeg;*.bmp;*.gif|All files|*.*",
             CheckFileExists = true,
             Multiselect = false
         };
         if (dialog.ShowDialog(this) != true) return;
 
-        SetBusy(true, "Copying logo…", "The selected image is being copied into the station's managed assets folder.");
+        var isSvg = string.Equals(Path.GetExtension(dialog.FileName), ".svg", StringComparison.OrdinalIgnoreCase);
+        string? convertedLogoPath = null;
+
+        SetBusy(
+            true,
+            isSvg ? "Converting SVG logo…" : "Copying logo…",
+            isSvg
+                ? "The vector artwork is being checked and converted into the station's managed assets folder."
+                : "The selected image is being copied into the station's managed assets folder.");
         try
         {
-            var result = await _logos.CopyIntoManagedStorageAsync(dialog.FileName);
+            var sourcePath = dialog.FileName;
+            if (isSvg)
+            {
+                convertedLogoPath = SvgLogoConverter.ConvertToTemporaryPng(sourcePath);
+                sourcePath = convertedLogoPath;
+            }
+
+            var result = await _logos.CopyIntoManagedStorageAsync(sourcePath);
             _viewModel.LogoPath = result.ManagedPath;
             SetViewModel(_viewModel);
             SetStatus(
-                "Logo copied locally",
-                "The managed copy will remain available if the original image is removed. Select Save and apply to activate it.",
+                isSvg ? "SVG converted and copied locally" : "Logo copied locally",
+                isSvg
+                    ? "The managed PNG will remain available if the original SVG is removed. Select Save and apply to activate it."
+                    : "The managed copy will remain available if the original image is removed. Select Save and apply to activate it.",
                 isError: false);
         }
         catch (Exception exception)
@@ -212,6 +317,7 @@ public partial class MainWindow : Window
         }
         finally
         {
+            SvgLogoConverter.TryDeleteTemporaryFile(convertedLogoPath);
             SetBusy(false);
         }
     }

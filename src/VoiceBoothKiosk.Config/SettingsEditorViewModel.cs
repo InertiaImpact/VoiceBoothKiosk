@@ -42,6 +42,7 @@ public sealed class SettingsEditorViewModel
         AllowAdministratorBrowseDestination = settings.AllowAdministratorBrowseDestination;
 
         DefaultClipNameFormat = settings.SessionBehavior.DefaultClipNameFormat;
+        SkipDestinationSelection = settings.SessionBehavior.SkipDestinationSelection;
         InactivityWarningMinutes = settings.SessionBehavior.InactivityWarningMinutes;
         RecoveryAlertDays = settings.SessionBehavior.RecoveryAlertDays;
         SuccessfulRecoveryRetentionHours = settings.SessionBehavior.SuccessfulRecoveryRetentionHours;
@@ -106,6 +107,7 @@ public sealed class SettingsEditorViewModel
     public bool AllowAdministratorBrowseDestination { get; set; }
 
     public string DefaultClipNameFormat { get; set; }
+    public bool SkipDestinationSelection { get; set; }
     public int InactivityWarningMinutes { get; set; }
     public int RecoveryAlertDays { get; set; }
     public int SuccessfulRecoveryRetentionHours { get; set; }
@@ -181,6 +183,7 @@ public sealed class SettingsEditorViewModel
             SessionBehavior = new SessionBehaviorSettings
             {
                 DefaultClipNameFormat = DefaultClipNameFormat,
+                SkipDestinationSelection = SkipDestinationSelection,
                 InactivityWarningMinutes = InactivityWarningMinutes,
                 RecoveryAlertDays = RecoveryAlertDays,
                 SuccessfulRecoveryRetentionHours = SuccessfulRecoveryRetentionHours,

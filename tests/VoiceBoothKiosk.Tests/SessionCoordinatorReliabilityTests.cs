@@ -468,6 +468,105 @@ public sealed class SessionCoordinatorReliabilityTests
     }
 
     [Fact]
+    public async Task End_session_finalizes_an_in_progress_recording_before_export()
+    {
+        var session = CreateRecordedSession();
+        var repository = new FaultInjectingSessionRepository(session);
+        var export = new SuccessfulExportService();
+        var capture = new SuccessfulCaptureService();
+        await using var coordinator = CreateCoordinator(session, repository, export, capture: capture);
+
+        await coordinator.InitializeAsync();
+        await coordinator.ResumeRecoveredSessionAsync();
+        await coordinator.StartRecordingAsync();
+
+        await coordinator.EndSessionAsync("approved");
+
+        Assert.Equal(1, capture.StopCount);
+        Assert.Equal(CoordinatorMode.Completed, coordinator.State.Mode);
+        Assert.Equal(SessionState.Completed, session.State);
+        var request = Assert.Single(export.Requests);
+        var clip = Assert.Single(request.Clips);
+        Assert.Equal(2, clip.Segments.Count);
+    }
+
+    [Fact]
+    public async Task End_session_exports_paused_segments_for_a_single_clip()
+    {
+        var session = CreateRecordedSession();
+        var repository = new FaultInjectingSessionRepository(session);
+        var export = new SuccessfulExportService();
+        var capture = new SuccessfulCaptureService();
+        await using var coordinator = CreateCoordinator(session, repository, export, capture: capture);
+
+        await coordinator.InitializeAsync();
+        await coordinator.ResumeRecoveredSessionAsync();
+        await coordinator.StartRecordingAsync();
+        await coordinator.StopRecordingAsync();
+        await coordinator.StartRecordingAsync();
+        await coordinator.StopRecordingAsync();
+
+        await coordinator.EndSessionAsync("approved");
+
+        Assert.Equal(2, capture.StopCount);
+        Assert.Equal(SessionState.Completed, session.State);
+        var request = Assert.Single(export.Requests);
+        var clip = Assert.Single(request.Clips);
+        Assert.Equal(3, clip.Segments.Count);
+        Assert.Equal(3, request.Clips.Sum(item => item.Segments.Count));
+    }
+
+    [Fact]
+    public async Task End_session_exports_paused_segments_for_multiple_clips()
+    {
+        var session = CreateRecordedSession();
+        var repository = new FaultInjectingSessionRepository(session);
+        var export = new SuccessfulExportService();
+        var capture = new SuccessfulCaptureService();
+        await using var coordinator = CreateCoordinator(session, repository, export, capture: capture);
+
+        await coordinator.InitializeAsync();
+        await coordinator.ResumeRecoveredSessionAsync();
+        await coordinator.NewClipAsync();
+        await coordinator.StartRecordingAsync();
+        await coordinator.StopRecordingAsync();
+
+        await coordinator.EndSessionAsync("approved");
+
+        Assert.Equal(SessionState.Completed, session.State);
+        var request = Assert.Single(export.Requests);
+        Assert.Equal(2, request.Clips.Count);
+        Assert.All(request.Clips, clip => Assert.NotEmpty(clip.Segments));
+    }
+
+    [Fact]
+    public async Task End_session_reports_the_export_failure_detail_after_a_paused_recording()
+    {
+        var session = CreateRecordedSession();
+        var repository = new FaultInjectingSessionRepository(session);
+        var export = new FailingExportService(new InvalidDataException("The finalized WAV segment is invalid."));
+        var capture = new SuccessfulCaptureService();
+        await using var coordinator = CreateCoordinator(session, repository, export, capture: capture);
+        ApplicationOperationFailedEventArgs? failure = null;
+        coordinator.OperationFailed += (_, args) => failure = args;
+
+        await coordinator.InitializeAsync();
+        await coordinator.ResumeRecoveredSessionAsync();
+        await coordinator.StartRecordingAsync();
+        await coordinator.StopRecordingAsync();
+
+        var exception = await Assert.ThrowsAsync<InvalidDataException>(() => coordinator.EndSessionAsync("approved"));
+
+        Assert.Equal("The finalized WAV segment is invalid.", exception.Message);
+        Assert.NotNull(failure);
+        Assert.Equal("End session", failure!.Operation);
+        Assert.Contains("The finalized WAV segment is invalid.", failure.UserMessage, StringComparison.Ordinal);
+        Assert.Contains("local recording is safe", failure.UserMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(CoordinatorMode.Ready, coordinator.State.Mode);
+        Assert.Equal(SessionState.Active, session.State);
+    }
+
+    [Fact]
     public async Task Pausing_playback_returns_to_ready_for_recording_and_new_clips()
     {
         var session = CreateRecordedSession();
@@ -631,6 +730,7 @@ public sealed class SessionCoordinatorReliabilityTests
         public int CommittedLookupCount { get; private set; }
         public ExportResult? CommittedResult { get; init; }
         public IReadOnlyCollection<Guid> CommittedSegmentIds { get; init; } = [];
+        public List<ExportRequest> Requests { get; } = [];
 
         public Task<DestinationValidationResult> ValidateDestinationAsync(DestinationPreset destination, CancellationToken cancellationToken = default) =>
             Task.FromResult(new DestinationValidationResult { IsValid = true, Message = "Ready", AvailableBytes = long.MaxValue });
@@ -654,6 +754,7 @@ public sealed class SessionCoordinatorReliabilityTests
         public Task<ExportResult> ExportAsync(ExportRequest request, IProgress<ExportProgress>? progress = null, CancellationToken cancellationToken = default)
         {
             ExportCallCount++;
+            Requests.Add(request);
             progress?.Report(new ExportProgress { State = ExportState.Committing, FractionComplete = 1, Message = "Committed" });
             return Task.FromResult(new ExportResult
             {
@@ -661,6 +762,28 @@ public sealed class SessionCoordinatorReliabilityTests
                 ExportedFilePaths = [Path.Combine(request.Destination.RootPath, request.SessionFolderName, request.Clips[0].OutputFileName)]
             });
         }
+    }
+
+    private sealed class FailingExportService(Exception exception) : IExportService
+    {
+        public Task<DestinationValidationResult> ValidateDestinationAsync(DestinationPreset destination, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new DestinationValidationResult { IsValid = true, Message = "Ready", AvailableBytes = long.MaxValue });
+
+        public Task<IReadOnlyCollection<string>> GetExistingSessionFolderNamesAsync(DestinationPreset destination, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyCollection<string>>([]);
+
+        public Task<ExportResult?> FindCommittedExportAsync(
+            Guid sessionId,
+            IReadOnlyCollection<Guid> finalizedSegmentIds,
+            IReadOnlyList<DestinationPreset> destinations,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<ExportResult?>(null);
+
+        public Task<ExportResult> ExportAsync(
+            ExportRequest request,
+            IProgress<ExportProgress>? progress = null,
+            CancellationToken cancellationToken = default) =>
+            Task.FromException<ExportResult>(exception);
     }
 
     private sealed class BlockingExportService : IExportService
@@ -804,6 +927,7 @@ public sealed class SessionCoordinatorReliabilityTests
         private AudioCaptureRequest? _request;
 
         public int StartCount { get; private set; }
+        public int StopCount { get; private set; }
         public bool IsRecording { get; private set; }
         public event EventHandler<AudioCaptureProgressEventArgs>? ProgressChanged;
         public event EventHandler<AudioCaptureFaultedEventArgs>? Faulted;
@@ -821,6 +945,7 @@ public sealed class SessionCoordinatorReliabilityTests
             var request = _request ?? throw new InvalidOperationException("Recording has not started.");
             IsRecording = false;
             _request = null;
+            StopCount++;
             return Task.FromResult(new AudioCaptureResult
             {
                 SegmentId = request.SegmentId,

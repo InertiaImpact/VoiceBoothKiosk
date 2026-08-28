@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Text.Json.Nodes;
 using VoiceBoothKiosk.Domain;
 using VoiceBoothKiosk.Infrastructure.Configuration;
 using VoiceBoothKiosk.Infrastructure.Storage;
@@ -54,6 +55,49 @@ public sealed class ConfigurationPresetTests : IDisposable
         Assert.Equal(settings.ContentBlocks, imported.Settings.ContentBlocks);
         Assert.Equal(settings.Destinations, imported.Settings.Destinations);
         Assert.Equal(settings.DefaultDestinationId, imported.Settings.DefaultDestinationId);
+        Assert.False(imported.Settings.Kiosk.KeepAwake);
+    }
+
+    [Fact]
+    public async Task Legacy_schema_two_preset_without_keep_awake_migrates_to_enabled()
+    {
+        Directory.CreateDirectory(root);
+        var destinationRoot = Path.Combine(root, "exports");
+        Directory.CreateDirectory(destinationRoot);
+        var paths = new ApplicationPaths(Path.Combine(root, "machine"), Path.Combine(root, "local"));
+        var service = new ConfigurationPresetService(paths);
+        var presetPath = Path.Combine(root, "legacy.voicebooth.zip");
+        var legacy = CreateSettings(string.Empty, destinationRoot) with
+        {
+            Branding = CreateSettings(string.Empty, destinationRoot).Branding with { LogoPath = null },
+            Kiosk = new KioskBehaviorSettings { KeepAwake = false }
+        };
+        await service.ExportAsync(legacy, presetPath);
+
+        using (var archive = ZipFile.Open(presetPath, ZipArchiveMode.Update))
+        {
+            var entry = archive.GetEntry("preset.json")!;
+            string json;
+            using (var reader = new StreamReader(entry.Open()))
+            {
+                json = await reader.ReadToEndAsync();
+            }
+            var manifest = JsonNode.Parse(json)!.AsObject();
+            var settingsNode = manifest["settings"]!.AsObject();
+            settingsNode["schemaVersion"] = 2;
+            settingsNode["applicationVersion"] = "1.0.0";
+            Assert.True(settingsNode["kiosk"]!.AsObject().Remove("keepAwake"));
+            entry.Delete();
+            var replacement = archive.CreateEntry("preset.json");
+            await using var writer = new StreamWriter(replacement.Open());
+            await writer.WriteAsync(manifest.ToJsonString());
+        }
+
+        var imported = await service.ImportAsync(presetPath);
+
+        Assert.Equal(KioskSettings.CurrentSchemaVersion, imported.Settings.SchemaVersion);
+        Assert.True(imported.Settings.Kiosk.KeepAwake);
+        Assert.Equal(VoiceBoothRelease.Version, imported.Settings.ApplicationVersion);
     }
 
     [Fact]
@@ -133,7 +177,8 @@ public sealed class ConfigurationPresetTests : IDisposable
                 }
             ],
             Destinations = [destination],
-            DefaultDestinationId = destination.Id
+            DefaultDestinationId = destination.Id,
+            Kiosk = new KioskBehaviorSettings { KeepAwake = false }
         };
     }
 

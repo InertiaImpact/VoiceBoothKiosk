@@ -73,6 +73,11 @@ public sealed record KioskBehaviorSettings
     public bool AlwaysOnTop { get; init; }
     public bool AllowClose { get; init; }
     public bool HideCursorWhenIdle { get; init; } = true;
+    /// <summary>
+    /// Requests that Windows keep the display and system awake while the public
+    /// recorder is running. Windows lock-screen and managed power policies remain authoritative.
+    /// </summary>
+    public bool KeepAwake { get; init; } = true;
 }
 
 public sealed record AccessibilitySettings
@@ -90,13 +95,26 @@ public sealed record DiagnosticsSettings
     public bool RunHardwareSelfTestOnStartup { get; init; } = true;
 }
 
+/// <summary>The three-part product version stamped into settings and session metadata.</summary>
+public static class VoiceBoothRelease
+{
+    public static string Version
+    {
+        get
+        {
+            var version = typeof(VoiceBoothRelease).Assembly.GetName().Version;
+            return version is null ? "0.0.0" : $"{version.Major}.{version.Minor}.{version.Build}";
+        }
+    }
+}
+
 /// <summary>Versioned, JSON-friendly settings shared by the kiosk and administrator app.</summary>
 public sealed record KioskSettings
 {
-    public const int CurrentSchemaVersion = 2;
+    public const int CurrentSchemaVersion = 3;
 
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
-    public string ApplicationVersion { get; init; } = "1.0.0";
+    public string ApplicationVersion { get; init; } = VoiceBoothRelease.Version;
     public BrandingSettings Branding { get; init; } = new();
     public IReadOnlyList<ContentBlock> ContentBlocks { get; init; } = DefaultContentBlocks();
     public LayoutSettings Layout { get; init; } = new();
@@ -127,7 +145,7 @@ public sealed record KioskSettings
 /// <summary>Settings frozen into a session so a later configuration change cannot reinterpret it.</summary>
 public sealed record SessionSettingsSnapshot
 {
-    public string ApplicationVersion { get; init; } = "1.0.0";
+    public string ApplicationVersion { get; init; } = VoiceBoothRelease.Version;
     public AudioFormat RecordingFormat { get; init; } = AudioFormat.CanonicalMono;
     public int Mp3BitrateKbps { get; init; } = 128;
     public AudioDeviceSelection InputDevice { get; init; } = AudioDeviceSelection.WindowsDefault(AudioDeviceFlow.Input);

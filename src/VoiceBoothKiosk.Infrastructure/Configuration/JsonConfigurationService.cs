@@ -132,7 +132,20 @@ public sealed class JsonConfigurationService : IConfigurationService
                 ContentBlocks = blocks
             };
         }
-        return settings;
+        if (settings.SchemaVersion < 3)
+        {
+            // Prior versions had no execution-state policy. Preserve the historical
+            // kiosk expectation that a dedicated public recorder remains visible and
+            // available, while leaving administrators free to turn it off explicitly.
+            settings = settings with
+            {
+                SchemaVersion = 3,
+                Kiosk = (settings.Kiosk ?? new KioskBehaviorSettings()) with { KeepAwake = true }
+            };
+        }
+        // ApplicationVersion is release metadata, not an operator preference. Always stamp the
+        // running build so sessions created from an older configuration report the true version.
+        return settings with { ApplicationVersion = VoiceBoothRelease.Version };
     }
 
     private static void InsertContentBlockAfter(List<ContentBlock> blocks, string precedingId, ContentBlock block)
@@ -161,6 +174,7 @@ public sealed class JsonConfigurationService : IConfigurationService
         return settings with
         {
             SchemaVersion = KioskSettings.CurrentSchemaVersion,
+            ApplicationVersion = VoiceBoothRelease.Version,
             Branding = settings.Branding with { LogoPath = logoPath, WelcomeSupportingText = null },
             Destinations = destinations
         };

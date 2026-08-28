@@ -17,7 +17,6 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AssemblyName>VoiceBoothKiosk</AssemblyName>
     <RootNamespace>VoiceBoothKiosk.App</RootNamespace>
-    <Version>1.0.0</Version>
     <Authors>KGAN Engineering</Authors>
     <Product>Voice Booth Kiosk</Product>
   </PropertyGroup>

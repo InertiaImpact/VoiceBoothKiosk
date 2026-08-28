@@ -42,6 +42,7 @@ public sealed class RecorderRuntimeContextTests
                 InputStatus = "Unavailable",
                 StorageStatus = "Ready",
                 EncoderStatus = "Ready",
+                KeepAwakeStatus = "Active — preventing display and system idle sleep",
                 RecorderExecutablePath = @"C:\Voice Booth\VoiceBoothKiosk.exe",
                 RecorderArguments = "--supervised-kiosk",
                 LaunchMode = "Supervised full-screen"

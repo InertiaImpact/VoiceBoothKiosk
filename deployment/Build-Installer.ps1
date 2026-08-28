@@ -35,14 +35,33 @@ if (-not $SkipPublish) {
 
 $recorderSource = Join-Path $PublishRoot "recorder"
 $configSource = Join-Path $PublishRoot "config"
+$recorderExecutable = Join-Path $recorderSource "VoiceBoothKiosk.exe"
+$recorderAssembly = Join-Path $recorderSource "VoiceBoothKiosk.dll"
+$configAssembly = Join-Path $configSource "VoiceBoothKiosk.Config.dll"
 foreach ($requiredFile in @(
-    (Join-Path $recorderSource "VoiceBoothKiosk.exe"),
+    $recorderExecutable,
+    $recorderAssembly,
     (Join-Path $recorderSource "VoiceBoothKiosk.Supervision.dll"),
-    (Join-Path $configSource "VoiceBoothKiosk.Config.exe")
+    (Join-Path $configSource "VoiceBoothKiosk.Config.exe"),
+    $configAssembly
 )) {
     if (-not (Test-Path -LiteralPath $requiredFile -PathType Leaf)) {
         throw "Published installer input is missing: $requiredFile"
     }
+}
+$assemblyVersion = [Reflection.AssemblyName]::GetAssemblyName($recorderAssembly).Version
+if ($assemblyVersion.Major -lt 0 -or $assemblyVersion.Minor -lt 0 -or $assemblyVersion.Build -lt 0) {
+    throw "The recorder executable does not contain a valid release version."
+}
+$packageVersion = "{0}.{1}.{2}" -f $assemblyVersion.Major, $assemblyVersion.Minor, $assemblyVersion.Build
+$configVersion = [Reflection.AssemblyName]::GetAssemblyName($configAssembly).Version
+if ($configVersion -ne $assemblyVersion) {
+    throw "Published recorder ($assemblyVersion) and configuration tool ($configVersion) versions do not match."
+}
+[xml]$buildProperties = Get-Content -LiteralPath (Join-Path $repositoryRoot "Directory.Build.props") -Raw
+$declaredVersion = [string]$buildProperties.Project.PropertyGroup.Version
+if (-not [string]::Equals($packageVersion, $declaredVersion, [StringComparison]::Ordinal)) {
+    throw "Published package version $packageVersion does not match Directory.Build.props version $declaredVersion. Run a fresh publish."
 }
 
 if (Test-Path -LiteralPath $OutputRoot) {
@@ -65,7 +84,7 @@ try {
         Copy-Item -LiteralPath (Join-Path $PSScriptRoot "installer\$fileName") -Destination (Join-Path $bundleRoot $fileName) -Force
     }
 
-    $bundleZip = Join-Path $OutputRoot "VoiceBoothKiosk-InstallerBundle-win-x64.zip"
+    $bundleZip = Join-Path $OutputRoot "VoiceBoothKiosk-InstallerBundle-win-x64-$packageVersion.zip"
     Compress-Archive -Path (Join-Path $bundleRoot "*") -DestinationPath $bundleZip -CompressionLevel Optimal
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot "installer\INSTALL.md") -Destination (Join-Path $OutputRoot "INSTALL.md") -Force
 
@@ -74,7 +93,7 @@ try {
         throw "Windows IExpress is unavailable; the ZIP installer bundle was still created at $bundleZip"
     }
 
-    $setupPath = Join-Path $OutputRoot "VoiceBoothKiosk-Setup-win-x64.exe"
+    $setupPath = Join-Path $OutputRoot "VoiceBoothKiosk-Setup-win-x64-$packageVersion.exe"
     # IExpress generates an unquoted MakeCab directive internally. Building its
     # temporary EXE under the short system-temp path avoids failures when the
     # repository path contains spaces or commas; copy the completed EXE afterward.
@@ -111,7 +130,7 @@ InstallPrompt=
 DisplayLicense=
 FinishMessage=
 TargetName=$setupBuildPath
-FriendlyName=Voice Booth Kiosk Setup
+FriendlyName=Voice Booth Kiosk Setup $packageVersion
 AppLaunched=powershell.exe -NoProfile -ExecutionPolicy Bypass -File Install-VoiceBoothKiosk.ps1
 PostInstallCmd=<None>
 AdminQuietInstCmd=powershell.exe -NoProfile -ExecutionPolicy Bypass -File Install-VoiceBoothKiosk.ps1 -Quiet

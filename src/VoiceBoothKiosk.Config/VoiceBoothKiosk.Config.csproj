@@ -16,7 +16,6 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>1.0.0</Version>
     <Authors>KGAN Engineering</Authors>
     <Product>Voice Booth Kiosk Configuration</Product>
   </PropertyGroup>

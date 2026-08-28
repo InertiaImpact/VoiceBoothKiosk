@@ -38,6 +38,10 @@ Remove it from the same account with:
 
 The supervised mode doesn't block task switching, Windows shortcuts, Task Manager, notifications, or access to other applications. Ending the hidden supervisor process also defeats its relaunch behavior. Use the Shell Launcher procedure below when the public must not be able to reach Windows.
 
+## Keep-awake setting
+
+The **Kiosk & layout** tab includes **Keep the screen and system awake while Voice Booth is running**, enabled by default. Like PowerToys Awake, the recorder owns the Windows execution-state request on a dedicated long-lived thread. It reasserts the request after resume and power-status changes and once per minute as a fallback, then releases it during normal exit. The Settings diagnostics snapshot reports whether Windows accepted the request. It prevents idle display and system sleep; it does not override Windows lock-screen, screen-saver, forced-sleep, update/restart, battery-critical, MDM, or other managed power policies. Configure those policies separately for the kiosk account and device.
+
 ## Deployment sequence
 
 1. Publish the release with `deployment\Publish.ps1` and build install artifacts with `deployment\Build-Installer.ps1 -SkipPublish`.

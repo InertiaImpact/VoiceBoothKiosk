@@ -8,7 +8,7 @@ public sealed class SettingsEditorViewModel
     public SettingsEditorViewModel(KioskSettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
-        ApplicationVersion = settings.ApplicationVersion;
+        ApplicationVersion = VoiceBoothRelease.Version;
         ApplicationTitle = settings.Branding.ApplicationTitle;
         ApplicationSubtitle = settings.Branding.ApplicationSubtitle;
         LogoPath = settings.Branding.LogoPath ?? string.Empty;
@@ -54,6 +54,7 @@ public sealed class SettingsEditorViewModel
         AlwaysOnTop = settings.Kiosk.AlwaysOnTop;
         AllowClose = settings.Kiosk.AllowClose;
         HideCursorWhenIdle = settings.Kiosk.HideCursorWhenIdle;
+        KeepAwake = settings.Kiosk.KeepAwake;
 
         HighContrast = settings.Accessibility.HighContrast;
         TextScale = settings.Accessibility.TextScale;
@@ -119,6 +120,7 @@ public sealed class SettingsEditorViewModel
     public bool AlwaysOnTop { get; set; }
     public bool AllowClose { get; set; }
     public bool HideCursorWhenIdle { get; set; }
+    public bool KeepAwake { get; set; }
 
     public bool HighContrast { get; set; }
     public double TextScale { get; set; }
@@ -135,7 +137,7 @@ public sealed class SettingsEditorViewModel
         return new KioskSettings
         {
             SchemaVersion = KioskSettings.CurrentSchemaVersion,
-            ApplicationVersion = string.IsNullOrWhiteSpace(ApplicationVersion) ? "1.0.0" : ApplicationVersion.Trim(),
+            ApplicationVersion = VoiceBoothRelease.Version,
             Branding = new BrandingSettings
             {
                 ApplicationTitle = ApplicationTitle,
@@ -196,7 +198,8 @@ public sealed class SettingsEditorViewModel
                 FullScreen = FullScreen,
                 AlwaysOnTop = AlwaysOnTop,
                 AllowClose = AllowClose,
-                HideCursorWhenIdle = HideCursorWhenIdle
+                HideCursorWhenIdle = HideCursorWhenIdle,
+                KeepAwake = KeepAwake
             },
             Accessibility = new AccessibilitySettings
             {

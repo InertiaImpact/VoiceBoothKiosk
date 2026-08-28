@@ -154,6 +154,88 @@ public sealed class WindowsAudioIntegrationTests : IDisposable
     }
 
     [Fact]
+    public async Task Media_foundation_exports_multiple_paused_segments_and_multiple_clips()
+    {
+        Directory.CreateDirectory(_root);
+        var firstSegmentPath = Path.Combine(_root, "first-segment.wav");
+        var resumedSegmentPath = Path.Combine(_root, "resumed-segment.wav");
+        var secondClipPath = Path.Combine(_root, "second-clip.wav");
+        var destinationRoot = Path.Combine(_root, "paused-exports");
+        Directory.CreateDirectory(destinationRoot);
+        WriteTone(firstSegmentPath, TimeSpan.FromSeconds(0.5));
+        WriteTone(resumedSegmentPath, TimeSpan.FromSeconds(0.75));
+        WriteTone(secondClipPath, TimeSpan.FromSeconds(0.5));
+
+        var firstClipId = Guid.NewGuid();
+        var secondClipId = Guid.NewGuid();
+        var request = new ExportRequest
+        {
+            SessionId = Guid.NewGuid(),
+            SessionDisplayName = "Paused recording integration",
+            Destination = new DestinationPreset
+            {
+                Id = "test",
+                Label = "Test",
+                RootPath = destinationRoot,
+                MinimumFreeBytes = 0
+            },
+            SessionFolderName = "Paused-recording_07162026",
+            Format = AudioFormat.CanonicalMono,
+            Mp3BitrateKbps = 128,
+            Clips =
+            [
+                new ClipExportSource
+                {
+                    ClipId = firstClipId,
+                    OutputFileName = "Paused-recording_01_07162026.mp3",
+                    Duration = TimeSpan.FromSeconds(1.25),
+                    Segments =
+                    [
+                        new PlaybackSegmentSource
+                        {
+                            SegmentId = Guid.NewGuid(),
+                            WavePath = firstSegmentPath,
+                            Duration = TimeSpan.FromSeconds(0.5)
+                        },
+                        new PlaybackSegmentSource
+                        {
+                            SegmentId = Guid.NewGuid(),
+                            WavePath = resumedSegmentPath,
+                            Duration = TimeSpan.FromSeconds(0.75)
+                        }
+                    ]
+                },
+                new ClipExportSource
+                {
+                    ClipId = secondClipId,
+                    OutputFileName = "Paused-recording_02_07162026.mp3",
+                    Duration = TimeSpan.FromSeconds(0.5),
+                    Segments =
+                    [
+                        new PlaybackSegmentSource
+                        {
+                            SegmentId = Guid.NewGuid(),
+                            WavePath = secondClipPath,
+                            Duration = TimeSpan.FromSeconds(0.5)
+                        }
+                    ]
+                }
+            ]
+        };
+
+        var result = await new MediaFoundationExportService().ExportAsync(request);
+
+        Assert.Equal(2, result.ExportedFilePaths.Count);
+        Assert.Equal(2, result.RawFilePaths.Count);
+        using var firstRawReader = new WaveFileReader(result.RawFilePaths.Single(path =>
+            Path.GetFileName(path) == "Paused-recording_01_07162026.wav"));
+        using var secondRawReader = new WaveFileReader(result.RawFilePaths.Single(path =>
+            Path.GetFileName(path) == "Paused-recording_02_07162026.wav"));
+        Assert.Equal(120_000, firstRawReader.Length);
+        Assert.Equal(48_000, secondRawReader.Length);
+    }
+
+    [Fact]
     public void Mp3_compatibility_sanitizer_removes_only_the_leading_id3v2_block()
     {
         Directory.CreateDirectory(_root);

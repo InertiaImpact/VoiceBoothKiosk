@@ -14,9 +14,14 @@ elseif (-not [System.IO.Path]::IsPathRooted($OutputRoot)) {
 }
 
 $OutputRoot = [System.IO.Path]::GetFullPath($OutputRoot)
-
-$recorderOutput = Join-Path $OutputRoot "recorder"
-$configOutput = Join-Path $OutputRoot "config"
+$outputLeaf = [System.IO.Path]::GetFileName($OutputRoot.TrimEnd('\'))
+$outputParent = Split-Path -Parent $OutputRoot
+if ([string]::IsNullOrWhiteSpace($outputLeaf) -or [string]::IsNullOrWhiteSpace($outputParent)) {
+    throw "Publish output must be a named directory, not a filesystem root."
+}
+$stagingRoot = Join-Path $outputParent ("$outputLeaf.staging-" + [Guid]::NewGuid().ToString("N"))
+$recorderOutput = Join-Path $stagingRoot "recorder"
+$configOutput = Join-Path $stagingRoot "config"
 
 # `dotnet publish --output` normalizes its path into an MSBuild property. A
 # comma in an ancestor folder (for example "Company, Inc") is then parsed as
@@ -32,6 +37,7 @@ $configPublishDir = ConvertTo-MsBuildPropertyValue $configOutput
 
 Push-Location $repositoryRoot
 try {
+    New-Item -ItemType Directory -Path $stagingRoot -Force | Out-Null
     dotnet restore VoiceBoothKiosk.sln --maxcpucount:1
     if ($LASTEXITCODE -ne 0) { throw "Solution restore failed." }
 
@@ -72,10 +78,32 @@ try {
         -p:PublishTrimmed=false
     if ($LASTEXITCODE -ne 0) { throw "Configuration-tool publish failed." }
 
-    Write-Host "Recorder: $recorderOutput"
-    Write-Host "Configuration tool: $configOutput"
+    # Publish into a fresh sibling tree, then promote it only when both applications are
+    # complete. This prevents stale DLLs from an older release surviving a failed publish.
+    $previousRoot = "$OutputRoot.previous-" + [Guid]::NewGuid().ToString("N")
+    if (Test-Path -LiteralPath $OutputRoot) {
+        Move-Item -LiteralPath $OutputRoot -Destination $previousRoot
+    }
+    try {
+        Move-Item -LiteralPath $stagingRoot -Destination $OutputRoot
+    }
+    catch {
+        if (Test-Path -LiteralPath $previousRoot) {
+            Move-Item -LiteralPath $previousRoot -Destination $OutputRoot
+        }
+        throw
+    }
+    if (Test-Path -LiteralPath $previousRoot) {
+        Remove-Item -LiteralPath $previousRoot -Recurse -Force
+    }
+
+    Write-Host "Recorder: $(Join-Path $OutputRoot 'recorder')"
+    Write-Host "Configuration tool: $(Join-Path $OutputRoot 'config')"
     Write-Warning "Sign and package these files before installing them on a production kiosk."
 }
 finally {
     Pop-Location
+    if (Test-Path -LiteralPath $stagingRoot) {
+        Remove-Item -LiteralPath $stagingRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
 }

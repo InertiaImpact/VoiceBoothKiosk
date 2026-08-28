@@ -4,19 +4,19 @@
 
 1. Sign in as the Windows account that will automatically run the kiosk.
 2. End any active recording session when practical. The installer will close running Voice Booth, Settings, and supervised-watchdog processes automatically.
-3. Double-click `VoiceBoothKiosk-Setup-win-x64.exe`.
+3. Double-click the versioned `VoiceBoothKiosk-Setup-win-x64-<version>.exe` package.
 4. Approve the administrator/UAC prompt. If the kiosk account is standard, supply an authorized administrator credential.
 5. Follow the visual installation progress window and click **Close** when it reports that installation is complete.
 6. Sign out and back in, or restart the PC. Voice Booth starts in supervised full-screen mode.
 7. Hold Settings for four seconds, configure the audio devices and destination, and complete a test recording/export.
 
-The installer captures the account that launched Setup before elevation. It installs self-contained x64 binaries under `C:\Program Files\VoiceBoothKiosk`, grants that account Modify access only to the application configuration/log directories under ProgramData, and creates a per-account logon task. It does not configure Windows automatic sign-in or store account credentials.
+The installer captures the account that launched Setup before elevation. It installs self-contained x64 binaries under `C:\Program Files\VoiceBoothKiosk`, grants that account Modify access only to the application configuration/log directories under ProgramData, and creates a per-account logon task. Its package version matches the recorder executable version. It does not configure Windows automatic sign-in or store account credentials.
 
 Seeing two `VoiceBoothKiosk.exe` processes in supervised mode is expected: one is the hidden supervisor and one is the visible recorder.
 
 ## Scripted installation
 
-Extract `VoiceBoothKiosk-InstallerBundle-win-x64.zip`, then run from an elevated PowerShell prompt:
+Extract the versioned `VoiceBoothKiosk-InstallerBundle-win-x64-<version>.zip`, then run from an elevated PowerShell prompt:
 
 ```powershell
 .\Install-VoiceBoothKiosk.ps1 -KioskUser "$env:COMPUTERNAME\VoiceBoothKiosk"

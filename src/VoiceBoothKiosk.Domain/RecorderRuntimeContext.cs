@@ -16,6 +16,7 @@ public sealed record RecorderRuntimeContext
     public string InputStatus { get; init; } = string.Empty;
     public string StorageStatus { get; init; } = string.Empty;
     public string EncoderStatus { get; init; } = string.Empty;
+    public string KeepAwakeStatus { get; init; } = string.Empty;
     public string RecorderExecutablePath { get; init; } = string.Empty;
     public string RecorderArguments { get; init; } = string.Empty;
     public string LaunchMode { get; init; } = "Standard";

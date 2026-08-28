@@ -906,20 +906,7 @@ public sealed class SessionCoordinator : IAsyncDisposable
         await _operationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var session = RequireActiveSession();
-            if (_mode == CoordinatorMode.Recording)
-            {
-                await StopRecordingCoreAsync(cancellationToken).ConfigureAwait(false);
-            }
-            else if (_mode is CoordinatorMode.Playing or CoordinatorMode.Paused)
-            {
-                await StopPlaybackCoreAsync(cancellationToken).ConfigureAwait(false);
-            }
-            else
-            {
-                RequireMode(CoordinatorMode.Ready);
-            }
-
+            var session = await PrepareActiveSessionForEndAsync(cancellationToken).ConfigureAwait(false);
             await CommitPendingUndoAsync(cancellationToken).ConfigureAwait(false);
             // A failed or interrupted Stop may leave older finalized audio beside a recoverable
             // continuation. Never use only the finalized subset for receipt lookup or export.
@@ -1056,7 +1043,10 @@ public sealed class SessionCoordinator : IAsyncDisposable
                         "Export failed and its local recovery status could not be saved.",
                         persistenceException);
                 }
-                ReportFailure("End session", "The session could not be saved. The local recording is safe and you can retry.", exception);
+                ReportFailure(
+                    "End session",
+                    CreateRetryableFailureMessage("The session could not be saved.", exception),
+                    exception);
                 throw;
             }
             finally
@@ -1108,20 +1098,7 @@ public sealed class SessionCoordinator : IAsyncDisposable
         await _operationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var session = RequireActiveSession();
-            if (_mode == CoordinatorMode.Recording)
-            {
-                await StopRecordingCoreAsync(cancellationToken).ConfigureAwait(false);
-            }
-            else if (_mode is CoordinatorMode.Playing or CoordinatorMode.Paused)
-            {
-                await StopPlaybackCoreAsync(cancellationToken).ConfigureAwait(false);
-            }
-            else
-            {
-                RequireMode(CoordinatorMode.Ready);
-            }
-
+            var session = await PrepareActiveSessionForEndAsync(cancellationToken).ConfigureAwait(false);
             await CommitPendingUndoAsync(cancellationToken).ConfigureAwait(false);
             if (session.HasUnresolvedSegments)
             {
@@ -1276,6 +1253,41 @@ public sealed class SessionCoordinator : IAsyncDisposable
             }
         }
 
+    }
+
+    /// <summary>
+    /// Brings a session to a safe, idle state before either End Session path performs
+    /// export or cleanup. An End Session click while recording always waits for the
+    /// active WAV segment to finish finalizing before it considers the session complete.
+    /// </summary>
+    private async Task<RecordingSession> PrepareActiveSessionForEndAsync(CancellationToken cancellationToken)
+    {
+        var session = RequireActiveSession();
+        if (_mode == CoordinatorMode.Recording)
+        {
+            try
+            {
+                await StopRecordingCoreAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                ReportFailure(
+                    "Finalize recording before end session",
+                    CreateRetryableFailureMessage("The recording could not be finalized.", exception),
+                    exception);
+                throw;
+            }
+        }
+        else if (_mode is CoordinatorMode.Playing or CoordinatorMode.Paused)
+        {
+            await StopPlaybackCoreAsync(cancellationToken).ConfigureAwait(false);
+        }
+        else
+        {
+            RequireMode(CoordinatorMode.Ready);
+        }
+
+        return session;
     }
 
     private void ClearActiveCapture()
@@ -1599,6 +1611,14 @@ public sealed class SessionCoordinator : IAsyncDisposable
             UserMessage = userMessage,
             Exception = exception
         });
+    }
+
+    private static string CreateRetryableFailureMessage(string summary, Exception exception)
+    {
+        var detail = exception.GetBaseException().Message?.Trim();
+        return string.IsNullOrWhiteSpace(detail)
+            ? $"{summary} The local recording is safe and you can retry."
+            : $"{summary} {detail} The local recording is safe and you can retry.";
     }
 
     private void ReportNonFatalPersistenceFailure(string operation, string userMessage, Exception exception)

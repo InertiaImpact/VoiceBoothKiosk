@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Threading;
 using System.IO;
+using Microsoft.Win32;
 using VoiceBoothKiosk.App.Services;
 using VoiceBoothKiosk.App.ViewModels;
 using VoiceBoothKiosk.Application;
@@ -10,6 +11,7 @@ using VoiceBoothKiosk.Infrastructure.Logging;
 using VoiceBoothKiosk.Infrastructure.Persistence;
 using VoiceBoothKiosk.Infrastructure.Storage;
 using VoiceBoothKiosk.Supervision;
+using VoiceBoothKiosk.Domain;
 
 namespace VoiceBoothKiosk.App;
 
@@ -23,6 +25,10 @@ public partial class App : System.Windows.Application
     private Task? _supervisorTask;
     private RollingFileLogger? _logger;
     private MainViewModel? _mainViewModel;
+    private SessionCoordinator? _coordinator;
+    private KeepAwakeService? _keepAwake;
+    private KioskSettings? _appliedSettings;
+    private bool _powerEventsSubscribed;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -65,7 +71,13 @@ public partial class App : System.Windows.Application
             var initialSettings = machineConfiguration.LoadAsync().GetAwaiter().GetResult();
             ApplyLoggingPolicy(_logger, initialSettings);
             MainViewModel.ApplyApplicationTheme(initialSettings);
-            machineConfiguration.SettingsChanged += (_, args) => ApplyLoggingPolicy(_logger, args.Settings);
+            _keepAwake = new KeepAwakeService();
+            _keepAwake.StateChanged += OnKeepAwakeStateChanged;
+            SubscribeToPowerEvents();
+            // An enabled checkbox must mean that Windows accepted the initial request. If the
+            // platform rejects it, startup reports the error instead of running with a false
+            // assurance that the display cannot idle.
+            _keepAwake.SetEnabled(initialSettings.Kiosk.KeepAwake);
             IConfigurationService configuration = new LayeredKioskConfigurationService(machineConfiguration, json);
             var sessionRepository = new JsonSessionRepository(paths, json);
             var workingStorage = new FileWorkingStorage(paths, json);
@@ -76,7 +88,7 @@ public partial class App : System.Windows.Application
             var waveforms = new WaveformCacheService();
             var export = new MediaFoundationExportService();
 
-            var coordinator = new SessionCoordinator(
+            _coordinator = new SessionCoordinator(
                 capture,
                 playback,
                 devices,
@@ -86,17 +98,10 @@ public partial class App : System.Windows.Application
                 workingStorage,
                 configuration,
                 new SystemClock());
-
-            var loggingSettings = initialSettings;
-            coordinator.StateChanged += (_, args) =>
-            {
-                if (ReferenceEquals(loggingSettings, args.State.Settings))
-                {
-                    return;
-                }
-                loggingSettings = args.State.Settings;
-                ApplyLoggingPolicy(_logger, loggingSettings);
-            };
+            var coordinator = _coordinator;
+            coordinator.OperationFailed += OnCoordinatorOperationFailed;
+            _appliedSettings = initialSettings;
+            coordinator.StateChanged += OnCoordinatorStateChanged;
 
             _mainViewModel = new MainViewModel(
                 coordinator,
@@ -104,7 +109,7 @@ public partial class App : System.Windows.Application
                 workingStorage,
                 export,
                 new UserPromptService(),
-                new ConfigurationEditorLauncher());
+                new ConfigurationEditorLauncher(GetKeepAwakeStatus));
             var mainWindow = new MainWindow { DataContext = _mainViewModel };
             MainWindow = mainWindow;
             ShutdownMode = ShutdownMode.OnMainWindowClose;
@@ -124,6 +129,15 @@ public partial class App : System.Windows.Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        if (_coordinator is not null)
+        {
+            // Detach before the UI thread synchronously waits for coordinator cleanup. A final
+            // state publication must never be able to call back into application shutdown.
+            _coordinator.OperationFailed -= OnCoordinatorOperationFailed;
+            _coordinator.StateChanged -= OnCoordinatorStateChanged;
+        }
+        UnsubscribeFromPowerEvents();
+
         try
         {
             _mainViewModel?.DisposeAsync().AsTask().GetAwaiter().GetResult();
@@ -138,6 +152,14 @@ public partial class App : System.Windows.Application
         }
         finally
         {
+            if (_keepAwake is not null)
+            {
+                _keepAwake.StateChanged -= OnKeepAwakeStateChanged;
+                _keepAwake.Dispose();
+                _keepAwake = null;
+            }
+            _coordinator = null;
+            _appliedSettings = null;
             _supervisorCancellation?.Cancel();
             _supervisorCancellation?.Dispose();
             _logger?.Dispose();
@@ -169,6 +191,144 @@ public partial class App : System.Windows.Application
     {
         _logger?.Write(AppLogLevel.Error, 1102, "Unobserved background task exception.", e.Exception);
         e.SetObserved();
+    }
+
+    private void OnCoordinatorOperationFailed(object? sender, ApplicationOperationFailedEventArgs e)
+    {
+        _logger?.Write(
+            AppLogLevel.Error,
+            1200,
+            $"Voice Booth operation failed: {e.Operation}.",
+            e.Exception,
+            new Dictionary<string, object?>
+            {
+                ["operation"] = e.Operation,
+                ["userMessage"] = e.UserMessage
+            });
+    }
+
+    private void OnCoordinatorStateChanged(object? sender, SessionCoordinatorStateChangedEventArgs e)
+    {
+        if (ReferenceEquals(_appliedSettings, e.State.Settings))
+        {
+            return;
+        }
+
+        _appliedSettings = e.State.Settings;
+        ApplyLoggingPolicy(_logger, e.State.Settings);
+        ApplyKeepAwakePolicy(e.State.Settings.Kiosk.KeepAwake);
+    }
+
+    private void ApplyKeepAwakePolicy(bool enabled)
+    {
+        if (_keepAwake is null)
+        {
+            return;
+        }
+
+        try
+        {
+            _keepAwake.SetEnabled(enabled);
+        }
+        catch (Exception exception)
+        {
+            _logger?.Write(
+                AppLogLevel.Error,
+                1201,
+                "Voice Booth could not apply its keep-awake policy; the worker will retry.",
+                exception,
+                new Dictionary<string, object?> { ["enabled"] = enabled });
+        }
+    }
+
+    private void OnKeepAwakeStateChanged(object? sender, KeepAwakeStateChangedEventArgs e)
+    {
+        if (e.State.LastError is not null)
+        {
+            _logger?.Write(
+                AppLogLevel.Error,
+                1202,
+                "The Voice Booth keep-awake request is not in its requested state; retry is scheduled.",
+                properties: new Dictionary<string, object?>
+                {
+                    ["requested"] = e.State.IsRequested,
+                    ["active"] = e.State.IsActive,
+                    ["error"] = e.State.LastError
+                });
+            return;
+        }
+
+        if (e.State.IsRequested == e.State.IsActive)
+        {
+            _logger?.Write(
+                AppLogLevel.Information,
+                1203,
+                e.State.IsActive
+                    ? "Display and system keep-awake is active."
+                    : "Display and system keep-awake is disabled.");
+        }
+    }
+
+    private void SubscribeToPowerEvents()
+    {
+        try
+        {
+            SystemEvents.PowerModeChanged += OnPowerModeChanged;
+            _powerEventsSubscribed = true;
+        }
+        catch (Exception exception)
+        {
+            // The periodic worker heartbeat still provides recovery if the current Windows
+            // session cannot supply power notifications.
+            _logger?.Write(
+                AppLogLevel.Warning,
+                1204,
+                "Windows power notifications are unavailable; keep-awake will use periodic reassertion.",
+                exception);
+        }
+    }
+
+    private void UnsubscribeFromPowerEvents()
+    {
+        if (!_powerEventsSubscribed)
+        {
+            return;
+        }
+
+        SystemEvents.PowerModeChanged -= OnPowerModeChanged;
+        _powerEventsSubscribed = false;
+    }
+
+    private void OnPowerModeChanged(object sender, PowerModeChangedEventArgs e)
+    {
+        if (e.Mode is not (PowerModes.Resume or PowerModes.StatusChange) ||
+            _keepAwake?.CurrentState.IsRequested != true)
+        {
+            return;
+        }
+
+        try
+        {
+            _keepAwake.Reassert();
+        }
+        catch
+        {
+            // The state event records the failure and the periodic heartbeat retries it.
+        }
+    }
+
+    private string GetKeepAwakeStatus()
+    {
+        var state = _keepAwake?.CurrentState;
+        if (state is null || !state.IsRequested)
+        {
+            return "Disabled in Settings";
+        }
+        if (state.IsActive && state.LastError is null)
+        {
+            return "Active — preventing display and system idle sleep";
+        }
+        return $"Unavailable — {state.LastError ?? "Windows has not accepted the request"}";
     }
 
     private static RollingFileLogger CreateLogger(ApplicationPaths paths)

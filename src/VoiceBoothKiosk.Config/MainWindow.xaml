@@ -188,6 +188,9 @@
                             <CheckBox Content="Keep the recorder above other windows" IsChecked="{Binding AlwaysOnTop}" />
                             <CheckBox Content="Show a four-second hold-to-exit X" IsChecked="{Binding AllowClose}" />
                             <CheckBox Content="Hide the cursor after inactivity" IsChecked="{Binding HideCursorWhenIdle}" />
+                            <CheckBox Content="Keep the screen and system awake while Voice Booth is running" IsChecked="{Binding KeepAwake}" />
+                            <TextBlock Margin="0,4,0,0" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap"
+                                       Text="Uses a Windows execution-state request similar to PowerToys Awake. It does not override Windows lock-screen, managed power, or forced-sleep policies." />
                             <TextBlock Margin="0,14,0,4" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap"
                                        Text="Windows Shell Launcher, AppLocker, and keyboard policy provide the actual kiosk security boundary. These options control only recorder behavior." />
 
@@ -317,6 +320,8 @@
                                     <TextBlock x:Name="RuntimeStorageText" TextWrapping="Wrap" Margin="0,2,0,9" />
                                     <TextBlock Text="MP3 encoder" Style="{StaticResource FieldLabel}" />
                                     <TextBlock x:Name="RuntimeEncoderText" TextWrapping="Wrap" Margin="0,2,0,9" />
+                                    <TextBlock Text="Keep awake" Style="{StaticResource FieldLabel}" />
+                                    <TextBlock x:Name="RuntimeKeepAwakeText" TextWrapping="Wrap" Margin="0,2,0,9" />
                                     <TextBlock Text="Launch mode" Style="{StaticResource FieldLabel}" />
                                     <TextBlock x:Name="RuntimeLaunchText" TextWrapping="Wrap" Margin="0,2,0,10" />
                                     <WrapPanel>

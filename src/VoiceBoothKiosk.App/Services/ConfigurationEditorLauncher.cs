@@ -20,6 +20,12 @@ public sealed record RecorderReadinessDetails(
 public sealed class ConfigurationEditorLauncher : IConfigurationEditorLauncher
 {
     private const string ExecutableName = "VoiceBoothKiosk.Config.exe";
+    private readonly Func<string> _keepAwakeStatusProvider;
+
+    public ConfigurationEditorLauncher(Func<string>? keepAwakeStatusProvider = null)
+    {
+        _keepAwakeStatusProvider = keepAwakeStatusProvider ?? (() => "Status unavailable");
+    }
 
     public async Task OpenAsync(RecorderReadinessDetails readiness, CancellationToken cancellationToken = default)
     {
@@ -41,6 +47,7 @@ public sealed class ConfigurationEditorLauncher : IConfigurationEditorLauncher
             InputStatus = readiness.InputStatus,
             StorageStatus = readiness.StorageStatus,
             EncoderStatus = readiness.EncoderStatus,
+            KeepAwakeStatus = _keepAwakeStatusProvider(),
             RecorderExecutablePath = Environment.ProcessPath ?? string.Empty,
             RecorderArguments = publicLaunch.Arguments,
             LaunchMode = publicLaunch.Mode

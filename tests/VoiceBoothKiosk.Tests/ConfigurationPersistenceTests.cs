@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using VoiceBoothKiosk.Domain;
 using VoiceBoothKiosk.Infrastructure.Configuration;
 using VoiceBoothKiosk.Infrastructure.Persistence;
@@ -76,6 +78,23 @@ public sealed class ConfigurationPersistenceTests : IDisposable
     }
 
     [Fact]
+    public async Task Keep_awake_policy_round_trips_through_machine_configuration()
+    {
+        var paths = CreatePaths();
+        var configuration = new JsonConfigurationService(paths, new AtomicJsonFile());
+        var defaults = JsonConfigurationService.CreateOperationalDefaults();
+        var settings = defaults with
+        {
+            Kiosk = defaults.Kiosk with { KeepAwake = false }
+        };
+
+        await configuration.SaveAsync(settings);
+        var reloaded = await configuration.LoadAsync();
+
+        Assert.False(reloaded.Kiosk.KeepAwake);
+    }
+
+    [Fact]
     public void Skipping_destination_selection_requires_a_default_destination()
     {
         var defaults = JsonConfigurationService.CreateOperationalDefaults();
@@ -115,6 +134,54 @@ public sealed class ConfigurationPersistenceTests : IDisposable
         Assert.Null(migrated.Branding.WelcomeSupportingText);
         Assert.Equal("Legacy supporting text", migrated.ContentBlocks.Single(block => block.Id == "welcome.supporting.1").Text);
         Assert.False(string.IsNullOrWhiteSpace(migrated.ContentBlocks.Single(block => block.Id == "welcome.supporting.2").Text));
+        Assert.True(migrated.Kiosk.KeepAwake);
+        Assert.Equal(VoiceBoothRelease.Version, migrated.ApplicationVersion);
+    }
+
+    [Fact]
+    public async Task Genuine_schema_two_json_without_keep_awake_enables_the_new_default()
+    {
+        var paths = CreatePaths();
+        var json = new AtomicJsonFile();
+        var configuration = new JsonConfigurationService(paths, json);
+        var legacy = JsonConfigurationService.CreateOperationalDefaults() with
+        {
+            SchemaVersion = 2,
+            ApplicationVersion = "1.0.0",
+            Kiosk = new KioskBehaviorSettings
+            {
+                FullScreen = true,
+                AlwaysOnTop = false,
+                AllowClose = false,
+                HideCursorWhenIdle = true,
+                KeepAwake = false
+            }
+        };
+        var document = JsonSerializer.SerializeToNode(legacy, json.SerializerOptions)!.AsObject();
+        Assert.True(document["kiosk"]!.AsObject().Remove("keepAwake"));
+        Directory.CreateDirectory(Path.GetDirectoryName(paths.MachineSettingsPath)!);
+        await File.WriteAllTextAsync(
+            paths.MachineSettingsPath,
+            document.ToJsonString(json.SerializerOptions));
+
+        var migrated = await configuration.LoadAsync();
+
+        Assert.Equal(KioskSettings.CurrentSchemaVersion, migrated.SchemaVersion);
+        Assert.True(migrated.Kiosk.KeepAwake);
+        Assert.Equal(VoiceBoothRelease.Version, migrated.ApplicationVersion);
+    }
+
+    [Fact]
+    public async Task Saving_configuration_stamps_the_running_release_version()
+    {
+        var paths = CreatePaths();
+        var configuration = new JsonConfigurationService(paths, new AtomicJsonFile());
+        var stale = JsonConfigurationService.CreateOperationalDefaults() with { ApplicationVersion = "1.0.0" };
+
+        await configuration.SaveAsync(stale);
+        var reloaded = await configuration.LoadAsync();
+
+        Assert.Equal(VoiceBoothRelease.Version, reloaded.ApplicationVersion);
     }
 
     [Fact]

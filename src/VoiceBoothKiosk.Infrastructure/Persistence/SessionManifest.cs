@@ -6,7 +6,7 @@ public sealed record SessionManifest
 {
     public const int CurrentSchemaVersion = 1;
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
-    public string ApplicationVersion { get; init; } = "1.0.0";
+    public string ApplicationVersion { get; init; } = VoiceBoothKiosk.Domain.VoiceBoothRelease.Version;
     public DateTimeOffset SavedAtUtc { get; init; } = DateTimeOffset.UtcNow;
     public required RecordingSession Session { get; init; }
 }

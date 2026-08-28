@@ -45,6 +45,9 @@ public partial class MainWindow : Window
         RuntimeInputText.Text = _runtimeContext.InputStatus;
         RuntimeStorageText.Text = _runtimeContext.StorageStatus;
         RuntimeEncoderText.Text = _runtimeContext.EncoderStatus;
+        RuntimeKeepAwakeText.Text = string.IsNullOrWhiteSpace(_runtimeContext.KeepAwakeStatus)
+            ? "Not checked"
+            : _runtimeContext.KeepAwakeStatus;
         RuntimeLaunchText.Text = string.IsNullOrWhiteSpace(_runtimeContext.RecorderExecutablePath)
             ? $"{_runtimeContext.LaunchMode} — recorder executable was not found"
             : $"{_runtimeContext.LaunchMode}{(string.IsNullOrWhiteSpace(_runtimeContext.RecorderArguments) ? string.Empty : $" ({_runtimeContext.RecorderArguments})")}\n{_runtimeContext.RecorderExecutablePath}";
@@ -87,6 +90,7 @@ public partial class MainWindow : Window
                       $"Microphone: {_runtimeContext.InputStatus}{Environment.NewLine}" +
                       $"Storage: {_runtimeContext.StorageStatus}{Environment.NewLine}" +
                       $"MP3 encoder: {_runtimeContext.EncoderStatus}{Environment.NewLine}" +
+                      $"Keep awake: {_runtimeContext.KeepAwakeStatus}{Environment.NewLine}" +
                       $"Launch: {_runtimeContext.LaunchMode} {_runtimeContext.RecorderArguments}{Environment.NewLine}" +
                       $"Recorder: {_runtimeContext.RecorderExecutablePath}{Environment.NewLine}" +
                       $"Logs: {_paths.LogDirectory}";
@@ -111,6 +115,7 @@ public partial class MainWindow : Window
             InputStatus = "Not checked",
             StorageStatus = "Not checked",
             EncoderStatus = "Not checked",
+            KeepAwakeStatus = "Not checked",
             RecorderExecutablePath = File.Exists(adjacentRecorder) ? adjacentRecorder : string.Empty,
             LaunchMode = "Standard"
         };

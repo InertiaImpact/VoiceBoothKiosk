@@ -198,9 +198,6 @@ public sealed class MainViewModel : ObservableObject, IMainWindowActions, IAsync
     public double HeaderLogoWidth => CalculateLogoContainerWidth(LogoSource, 46, 4, 160);
     public bool AllowDeviceSelection => _state.Settings.Audio.AllowPatronDeviceSelection;
     public bool AllowOutputVolumeControl => _state.Settings.Audio.AllowOutputVolumeControl;
-    public bool ShowHoldToExit => _state.Settings.Kiosk.AllowClose ||
-                                  HasCommandLineSwitch("--windowed") ||
-                                  HasCommandLineSwitch("--supervised-kiosk");
     public bool FullScreen => !HasCommandLineSwitch("--windowed") &&
                               (_state.Settings.Kiosk.FullScreen || HasCommandLineSwitch("--supervised-kiosk"));
     public bool AlwaysOnTop => _state.Settings.Kiosk.AlwaysOnTop || HasCommandLineSwitch("--supervised-kiosk");
@@ -1635,7 +1632,7 @@ public sealed class MainViewModel : ObservableObject, IMainWindowActions, IAsync
             nameof(PrivacyNotice), nameof(DeviceInstructions), nameof(EndSessionInstructions), nameof(EndSessionPanelInstructions),
             nameof(EndSessionPrimaryButtonText), nameof(WelcomeExtraContent),
             nameof(RecordingExtraContent), nameof(DeviceExtraContent), nameof(EndSessionExtraContent), nameof(LogoSource), nameof(HasLogo), nameof(WelcomeLogoWidth), nameof(HeaderLogoWidth),
-            nameof(AllowDeviceSelection), nameof(AllowOutputVolumeControl), nameof(ShowHoldToExit), nameof(FullScreen), nameof(AlwaysOnTop), nameof(CanOpenConfiguration), nameof(KioskCursor),
+            nameof(AllowDeviceSelection), nameof(AllowOutputVolumeControl), nameof(FullScreen), nameof(AlwaysOnTop), nameof(CanOpenConfiguration), nameof(KioskCursor),
             nameof(TextScale), nameof(ControlButtonMinHeight), nameof(ClipRailColumn), nameof(MainWorkspaceColumn),
             nameof(LeftWorkspaceWidth), nameof(RightWorkspaceWidth), nameof(WaveformBrush), nameof(WaveformBackgroundBrush), nameof(RecordingWaveformBrush), nameof(IsSessionActive),
             nameof(CurrentSessionName), nameof(SessionElapsedText), nameof(CanEditClipName), nameof(CanUndo), nameof(SelectedDuration),

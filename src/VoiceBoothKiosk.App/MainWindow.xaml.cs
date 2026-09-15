@@ -15,7 +15,6 @@ namespace VoiceBoothKiosk.App;
 public interface IMainWindowActions
 {
     ICommand StartSessionCommand { get; }
-    bool ShowHoldToExit { get; }
     bool CanOpenConfiguration { get; }
     Task InitializeAsync();
     Task OpenConfigurationAsync();
@@ -390,8 +389,7 @@ public partial class MainWindow : Window
         {
             return false;
         }
-        if (action == ProtectedHoldAction.Settings && !actions.CanOpenConfiguration ||
-            action == ProtectedHoldAction.Exit && !actions.ShowHoldToExit)
+        if (action == ProtectedHoldAction.Settings && !actions.CanOpenConfiguration)
         {
             return false;
         }

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using VoiceBoothKiosk.Config;
 using VoiceBoothKiosk.Domain;
 
@@ -5,6 +6,16 @@ namespace VoiceBoothKiosk.Tests;
 
 public sealed class SettingsEditorViewModelTests
 {
+    [Fact]
+    public void Visible_release_badge_uses_the_compiled_product_version()
+    {
+        Assert.Equal("1.1.1", VoiceBoothRelease.Version);
+        Assert.Equal("v1.1.1", VoiceBoothRelease.DisplayVersion);
+        Assert.Equal(
+            "1.1.1",
+            FileVersionInfo.GetVersionInfo(typeof(VoiceBoothRelease).Assembly.Location).ProductVersion);
+    }
+
     [Fact]
     public void Keep_awake_round_trips_through_the_settings_editor_mapper()
     {

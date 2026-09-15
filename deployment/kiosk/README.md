@@ -83,7 +83,7 @@ Enable the Windows `Client-KeyboardFilter` optional feature and suppress escape 
 
 Configure and physically label a private service breakout sequence for administrators. Test it before the kiosk goes into public use. Safe Mode bypasses Keyboard Filter and must be covered by physical/firmware security.
 
-When enabled in application settings, the faint top-right X requires a continuous four-second hold before closing the recorder. It is convenient for supervised full-screen deployments but is not a security boundary. Shell Launcher deployments should normally disable it and use the operating-system breakout procedure for servicing.
+The faint top-right X always requires a continuous four-second hold before closing the recorder. This delay cannot be disabled in application settings. It is convenient for supervised full-screen deployments but is not a security boundary; Shell Launcher deployments should still use the operating-system breakout procedure for servicing.
 
 ## Automatic sign-in and credentials
 

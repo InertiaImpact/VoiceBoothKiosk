@@ -4,6 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:controls="clr-namespace:VoiceBoothKiosk.App.Controls"
+        xmlns:domain="clr-namespace:VoiceBoothKiosk.Domain;assembly=VoiceBoothKiosk.Domain"
         mc:Ignorable="d"
         Title="{Binding ApplicationTitle}"
         Width="1440"
@@ -39,6 +40,16 @@
                         HorizontalAlignment="Right"
                         VerticalAlignment="Top"
                         Panel.ZIndex="10">
+                <Border Style="{StaticResource VersionBadge}"
+                        Margin="0,0,14,0"
+                        ToolTip="Installed Voice Booth version"
+                        AutomationProperties.Name="Installed Voice Booth version">
+                    <TextBlock Text="{x:Static domain:VoiceBoothRelease.DisplayVersion}"
+                               FontFamily="Cascadia Mono, Consolas"
+                               FontSize="12"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource MutedTextBrush}" />
+                </Border>
                 <Button Command="{Binding OpenDevicesCommand}"
                         Style="{StaticResource QuietIconButton}"
                         Margin="0,0,8,0"
@@ -80,7 +91,6 @@
                         ToolTip="Press and hold for 4 seconds to exit"
                         AutomationProperties.Name="Exit Voice Booth"
                         AutomationProperties.HelpText="Press and hold for four seconds"
-                        Visibility="{Binding ShowHoldToExit, Converter={StaticResource BooleanToVisibilityConverter}}"
                         PreviewMouseLeftButtonDown="ProtectedHoldButton_PreviewMouseLeftButtonDown"
                         PreviewMouseLeftButtonUp="ProtectedHoldButton_PreviewMouseLeftButtonUp"
                         MouseLeave="ProtectedHoldButton_MouseLeave"
@@ -232,6 +242,16 @@
                     </Border>
 
                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Border Style="{StaticResource VersionBadge}"
+                                Margin="0,0,14,0"
+                                ToolTip="Installed Voice Booth version"
+                                AutomationProperties.Name="Installed Voice Booth version">
+                            <TextBlock Text="{x:Static domain:VoiceBoothRelease.DisplayVersion}"
+                                       FontFamily="Cascadia Mono, Consolas"
+                                       FontSize="12"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource MutedTextBrush}" />
+                        </Border>
                         <Button Command="{Binding OpenDevicesCommand}"
                                 Style="{StaticResource QuietIconButton}"
                                 Margin="0,0,8,0"
@@ -274,7 +294,6 @@
                                 ToolTip="Press and hold for 4 seconds to exit"
                                 AutomationProperties.Name="Exit Voice Booth"
                                 AutomationProperties.HelpText="Press and hold for four seconds"
-                                Visibility="{Binding ShowHoldToExit, Converter={StaticResource BooleanToVisibilityConverter}}"
                                 PreviewMouseLeftButtonDown="ProtectedHoldButton_PreviewMouseLeftButtonDown"
                                 PreviewMouseLeftButtonUp="ProtectedHoldButton_PreviewMouseLeftButtonUp"
                                 MouseLeave="ProtectedHoldButton_MouseLeave"

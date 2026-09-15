@@ -152,7 +152,6 @@ public sealed class ConfigurationPersistenceTests : IDisposable
             {
                 FullScreen = true,
                 AlwaysOnTop = false,
-                AllowClose = false,
                 HideCursorWhenIdle = true,
                 KeepAwake = false
             }
@@ -169,6 +168,28 @@ public sealed class ConfigurationPersistenceTests : IDisposable
         Assert.Equal(KioskSettings.CurrentSchemaVersion, migrated.SchemaVersion);
         Assert.True(migrated.Kiosk.KeepAwake);
         Assert.Equal(VoiceBoothRelease.Version, migrated.ApplicationVersion);
+    }
+
+    [Fact]
+    public async Task Legacy_allow_close_setting_is_ignored_and_removed_when_saved()
+    {
+        var paths = CreatePaths();
+        var json = new AtomicJsonFile();
+        var configuration = new JsonConfigurationService(paths, json);
+        var document = JsonSerializer.SerializeToNode(
+            JsonConfigurationService.CreateOperationalDefaults(),
+            json.SerializerOptions)!.AsObject();
+        document["kiosk"]!.AsObject()["allowClose"] = false;
+        Directory.CreateDirectory(Path.GetDirectoryName(paths.MachineSettingsPath)!);
+        await File.WriteAllTextAsync(
+            paths.MachineSettingsPath,
+            document.ToJsonString(json.SerializerOptions));
+
+        var migrated = await configuration.LoadAsync();
+        await configuration.SaveAsync(migrated);
+
+        var saved = JsonNode.Parse(await File.ReadAllTextAsync(paths.MachineSettingsPath))!.AsObject();
+        Assert.False(saved["kiosk"]!.AsObject().ContainsKey("allowClose"));
     }
 
     [Fact]

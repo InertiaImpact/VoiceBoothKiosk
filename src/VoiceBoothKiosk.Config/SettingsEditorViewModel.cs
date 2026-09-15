@@ -52,7 +52,6 @@ public sealed class SettingsEditorViewModel
 
         FullScreen = settings.Kiosk.FullScreen;
         AlwaysOnTop = settings.Kiosk.AlwaysOnTop;
-        AllowClose = settings.Kiosk.AllowClose;
         HideCursorWhenIdle = settings.Kiosk.HideCursorWhenIdle;
         KeepAwake = settings.Kiosk.KeepAwake;
 
@@ -118,7 +117,6 @@ public sealed class SettingsEditorViewModel
 
     public bool FullScreen { get; set; }
     public bool AlwaysOnTop { get; set; }
-    public bool AllowClose { get; set; }
     public bool HideCursorWhenIdle { get; set; }
     public bool KeepAwake { get; set; }
 
@@ -197,7 +195,6 @@ public sealed class SettingsEditorViewModel
             {
                 FullScreen = FullScreen,
                 AlwaysOnTop = AlwaysOnTop,
-                AllowClose = AllowClose,
                 HideCursorWhenIdle = HideCursorWhenIdle,
                 KeepAwake = KeepAwake
             },

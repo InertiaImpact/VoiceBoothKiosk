@@ -71,7 +71,6 @@ public sealed record KioskBehaviorSettings
 {
     public bool FullScreen { get; init; } = true;
     public bool AlwaysOnTop { get; init; }
-    public bool AllowClose { get; init; }
     public bool HideCursorWhenIdle { get; init; } = true;
     /// <summary>
     /// Requests that Windows keep the display and system awake while the public
@@ -106,6 +105,8 @@ public static class VoiceBoothRelease
             return version is null ? "0.0.0" : $"{version.Major}.{version.Minor}.{version.Build}";
         }
     }
+
+    public static string DisplayVersion => $"v{Version}";
 }
 
 /// <summary>Versioned, JSON-friendly settings shared by the kiosk and administrator app.</summary>

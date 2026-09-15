@@ -15,6 +15,7 @@ Voice Booth Kiosk is a Windows 11 walk-up audio recorder designed for a full-scr
 - Optional streamlined End Session behavior that skips the picker, saves to the configured default destination, and shows the normal saved-files confirmation
 - Transactional 128 kbps Media Foundation MP3 export plus matching lossless WAV archival, with exact-profile preflight, collision protection, and output validation
 - A durable hidden export receipt that prevents a restart after destination commit from creating a duplicate session folder
+- A visible version badge derived from the compiled release on the welcome screen, active-session toolbar, and Settings header
 - Small top-right Audio Devices and Settings icons, with an ungated editor for instructions, title/subtitle branding, actual-scale identity preview, aspect-aware PNG/JPG/BMP/GIF/SVG logos, in-line and pop-up visual color selection, two stacked welcome supporting blocks, destinations, policies, accessibility, retention, audio defaults, an optional Windows keep-awake request while the recorder is running, live recorder-readiness details, log access, and launch-mode-aware desktop shortcut creation; instruction text accepts Enter or literal `\n` line breaks
 - Portable ZIP preset import/export for copying the complete validated configuration, colors, content, and an embedded logo between stations
 - Versioned JSON settings, rolling logs, recovery quarantine, free-space checks, inactivity privacy timeout, and single-instance enforcement

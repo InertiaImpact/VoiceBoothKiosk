@@ -104,17 +104,23 @@ public sealed class MediaFoundationMp3Exporter
             }
 
             cancellationToken.ThrowIfCancellationRequested();
-            Mp3CompatibilitySanitizer.RemoveLeadingId3v2Tag(partialPath, cancellationToken);
+            TransientFileOperation.Execute(
+                () => Mp3CompatibilitySanitizer.RemoveLeadingId3v2Tag(partialPath, cancellationToken),
+                cancellationToken);
 
-            TimeSpan encodedDuration;
-            using (var reader = new MediaFoundationReader(partialPath))
-            {
-                encodedDuration = reader.TotalTime;
-                if (reader.Length <= 0 || encodedDuration <= TimeSpan.Zero)
+            var encodedDuration = TransientFileOperation.Execute(
+                () =>
                 {
-                    throw new InvalidDataException("The Windows MP3 encoder produced an unreadable or empty file.");
-                }
-            }
+                    using var reader = new MediaFoundationReader(partialPath);
+                    var duration = reader.TotalTime;
+                    if (reader.Length <= 0 || duration <= TimeSpan.Zero)
+                    {
+                        throw new InvalidDataException("The Windows MP3 encoder produced an unreadable or empty file.");
+                    }
+
+                    return duration;
+                },
+                cancellationToken);
 
             var durationTolerance = TimeSpan.FromSeconds(Math.Max(1.5, sourceDuration.TotalSeconds * 0.03));
             if ((encodedDuration - sourceDuration).Duration() > durationTolerance)
@@ -123,18 +129,23 @@ public sealed class MediaFoundationMp3Exporter
                     $"The encoded MP3 duration ({encodedDuration}) differs from its source ({sourceDuration}) beyond tolerance.");
             }
 
-            using (var durableStream = new FileStream(
-                       partialPath,
-                       FileMode.Open,
-                       FileAccess.ReadWrite,
-                       FileShare.Read,
-                       1,
-                       FileOptions.WriteThrough))
-            {
-                durableStream.Flush(flushToDisk: true);
-            }
+            TransientFileOperation.Execute(
+                () =>
+                {
+                    using var durableStream = new FileStream(
+                        partialPath,
+                        FileMode.Open,
+                        FileAccess.ReadWrite,
+                        FileShare.Read,
+                        1,
+                        FileOptions.WriteThrough);
+                    durableStream.Flush(flushToDisk: true);
+                },
+                cancellationToken);
 
-            File.Move(partialPath, outputPath, overwrite: false);
+            TransientFileOperation.Execute(
+                () => File.Move(partialPath, outputPath, overwrite: false),
+                cancellationToken);
             return new Mp3ExportResult(
                 outputPath,
                 sourceDuration,

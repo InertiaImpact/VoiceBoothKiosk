@@ -13,16 +13,22 @@ public sealed class MediaFoundationExportService : IExportService, IExportPrefli
 {
     private const string CommitReceiptFileName = ".voicebooth-export.json";
     private const string RawFolderName = "Raw";
+    private const int CopyBufferSize = 128 * 1024;
     private readonly MediaFoundationMp3Exporter exporter;
+    private readonly string localExportRoot;
 
     public MediaFoundationExportService()
-        : this(new MediaFoundationMp3Exporter())
+        : this(new MediaFoundationMp3Exporter(), null)
     {
     }
 
-    public MediaFoundationExportService(MediaFoundationMp3Exporter exporter)
+    public MediaFoundationExportService(MediaFoundationMp3Exporter exporter, string? localExportRoot = null)
     {
         this.exporter = exporter ?? throw new ArgumentNullException(nameof(exporter));
+        this.localExportRoot = Path.GetFullPath(localExportRoot ?? Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "VoiceBoothKiosk",
+            "export-cache"));
     }
 
     public Task<ExportEncoderValidationResult> ValidateEncoderAsync(
@@ -158,6 +164,9 @@ public sealed class MediaFoundationExportService : IExportService, IExportPrefli
             root,
             $".{request.SessionFolderName}.voicebooth-reservation",
             "reservation marker");
+        var localEncodingFolder = Path.Combine(
+            localExportRoot,
+            $"VoiceBoothKiosk-Export-{Guid.NewGuid():N}");
         FileStream reservation;
         try
         {
@@ -186,6 +195,7 @@ public sealed class MediaFoundationExportService : IExportService, IExportPrefli
                 throw new IOException($"The destination session folder already exists: {finalFolder}");
             }
 
+            Directory.CreateDirectory(localEncodingFolder);
             Directory.CreateDirectory(stagingFolder);
             var rawStagingFolder = CombineSingleChild(stagingFolder, RawFolderName, "raw audio folder");
             Directory.CreateDirectory(rawStagingFolder);
@@ -204,9 +214,10 @@ public sealed class MediaFoundationExportService : IExportService, IExportPrefli
                     $"Encoding MP3 {index + 1} of {request.Clips.Count}.");
 
                 var stagedPath = CombineSingleChild(stagingFolder, outputNames[index], "MP3 file");
+                var localEncodedPath = CombineSingleChild(localEncodingFolder, outputNames[index], "local MP3 file");
                 var result = await exporter.ExportAsync(
                     clip.Segments.Select(static segment => segment.WavePath).ToArray(),
-                    stagedPath,
+                    localEncodedPath,
                     bitrate,
                     cancellationToken).ConfigureAwait(false);
                 var tolerance = TimeSpan.FromSeconds(Math.Max(1.5, clip.Duration.TotalSeconds * 0.03));
@@ -216,6 +227,9 @@ public sealed class MediaFoundationExportService : IExportService, IExportPrefli
                         $"Clip {clip.ClipId} metadata does not match the duration of its WAV segments.");
                 }
 
+                await Task.Run(
+                    () => CopyCompletedFile(localEncodedPath, stagedPath, cancellationToken),
+                    CancellationToken.None).ConfigureAwait(false);
                 stagedMp3Paths.Add(stagedPath);
                 Report(
                     progress,
@@ -233,7 +247,9 @@ public sealed class MediaFoundationExportService : IExportService, IExportPrefli
             cancellationToken.ThrowIfCancellationRequested();
             WriteCommitReceipt(stagingFolder, request, outputNames, rawOutputNames);
             Report(progress, ExportState.Committing, 0.98, null, "Finalizing the session folder.");
-            Directory.Move(stagingFolder, finalFolder);
+            TransientFileOperation.Execute(
+                () => Directory.Move(stagingFolder, finalFolder),
+                cancellationToken);
 
             var finalPaths = stagedMp3Paths
                 .Select(path => Path.Combine(finalFolder, Path.GetFileName(path)))
@@ -265,6 +281,69 @@ public sealed class MediaFoundationExportService : IExportService, IExportPrefli
         {
             reservation.Dispose();
             TryDeleteReservation(reservationPath);
+            TryDeleteLocalEncodingFolder(localEncodingFolder, localExportRoot);
+        }
+    }
+
+    private static void CopyCompletedFile(
+        string sourcePath,
+        string destinationPath,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var fullSource = Path.GetFullPath(sourcePath);
+        var fullDestination = Path.GetFullPath(destinationPath);
+        if (File.Exists(fullDestination))
+        {
+            throw new IOException($"The staged MP3 already exists: {fullDestination}");
+        }
+
+        var directory = Path.GetDirectoryName(fullDestination) ??
+                        throw new ArgumentException("The staged MP3 path has no parent directory.", nameof(destinationPath));
+        var transferPath = Path.Combine(
+            directory,
+            $".{Path.GetFileName(fullDestination)}.{Guid.NewGuid():N}.transferring");
+        try
+        {
+            long sourceLength;
+            using (var source = new FileStream(
+                       fullSource,
+                       FileMode.Open,
+                       FileAccess.Read,
+                       FileShare.Read,
+                       CopyBufferSize,
+                       FileOptions.SequentialScan))
+            {
+                sourceLength = source.Length;
+                using var destination = new FileStream(
+                    transferPath,
+                    FileMode.CreateNew,
+                    FileAccess.Write,
+                    FileShare.None,
+                    CopyBufferSize,
+                    FileOptions.SequentialScan | FileOptions.WriteThrough);
+                var buffer = new byte[CopyBufferSize];
+                int read;
+                while ((read = source.Read(buffer, 0, buffer.Length)) > 0)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    destination.Write(buffer, 0, read);
+                }
+                destination.Flush(flushToDisk: true);
+            }
+
+            if (new FileInfo(transferPath).Length != sourceLength)
+            {
+                throw new IOException("The staged MP3 length does not match its verified local source.");
+            }
+
+            TransientFileOperation.Execute(
+                () => File.Move(transferPath, fullDestination, overwrite: false),
+                cancellationToken);
+        }
+        finally
+        {
+            TryDeleteFile(transferPath);
         }
     }
 
@@ -698,7 +777,7 @@ public sealed class MediaFoundationExportService : IExportService, IExportPrefli
                 Path.GetFileName(fullStaging).EndsWith(".partial", StringComparison.OrdinalIgnoreCase) &&
                 Directory.Exists(fullStaging))
             {
-                Directory.Delete(fullStaging, recursive: true);
+                TransientFileOperation.Execute(() => Directory.Delete(fullStaging, recursive: true));
             }
         }
         catch
@@ -711,13 +790,46 @@ public sealed class MediaFoundationExportService : IExportService, IExportPrefli
     {
         try
         {
-            File.Delete(reservationPath);
+            TransientFileOperation.Execute(() => File.Delete(reservationPath));
         }
         catch (IOException)
         {
         }
         catch (UnauthorizedAccessException)
         {
+        }
+    }
+
+    private static void TryDeleteFile(string path)
+    {
+        try
+        {
+            TransientFileOperation.Execute(() => File.Delete(path));
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+        }
+    }
+
+    private static void TryDeleteLocalEncodingFolder(string localEncodingFolder, string approvedRoot)
+    {
+        try
+        {
+            var fullRoot = Path.GetFullPath(approvedRoot);
+            var fullFolder = Path.GetFullPath(localEncodingFolder);
+            var relative = Path.GetRelativePath(fullRoot, fullFolder);
+            if (relative != ".." &&
+                !relative.StartsWith($"..{Path.DirectorySeparatorChar}", StringComparison.Ordinal) &&
+                !Path.IsPathRooted(relative) &&
+                Path.GetFileName(fullFolder).StartsWith("VoiceBoothKiosk-Export-", StringComparison.Ordinal) &&
+                Directory.Exists(fullFolder))
+            {
+                TransientFileOperation.Execute(() => Directory.Delete(fullFolder, recursive: true));
+            }
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            // The uniquely named local cache remains recoverable and can be removed during maintenance.
         }
     }
 

@@ -68,9 +68,10 @@ public sealed class WindowsAudioIntegrationTests : IDisposable
         Directory.CreateDirectory(_root);
         var wavePath = Path.Combine(_root, "source.wav");
         var destinationRoot = Path.Combine(_root, "exports");
+        var localExportRoot = Path.Combine(_root, "local-export-cache");
         Directory.CreateDirectory(destinationRoot);
         WriteTone(wavePath, TimeSpan.FromSeconds(1));
-        var service = new MediaFoundationExportService();
+        var service = new MediaFoundationExportService(new MediaFoundationMp3Exporter(), localExportRoot);
         var clipId = Guid.NewGuid();
         var segmentId = Guid.NewGuid();
         var request = new ExportRequest
@@ -145,6 +146,9 @@ public sealed class WindowsAudioIntegrationTests : IDisposable
         Assert.Equal(result.SessionFolderPath, recovered.SessionFolderPath);
         Assert.Equal(result.ExportedFilePaths, recovered.ExportedFilePaths);
         Assert.Equal(result.RawFilePaths, recovered.RawFilePaths);
+        Assert.True(Directory.Exists(localExportRoot));
+        Assert.Empty(Directory.EnumerateFileSystemEntries(localExportRoot));
+        Assert.Empty(Directory.EnumerateFiles(result.SessionFolderPath, "*.transferring", SearchOption.AllDirectories));
 
         var changedSession = await service.FindCommittedExportAsync(
             request.SessionId,

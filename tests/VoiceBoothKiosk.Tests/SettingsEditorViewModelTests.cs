@@ -9,10 +9,10 @@ public sealed class SettingsEditorViewModelTests
     [Fact]
     public void Visible_release_badge_uses_the_compiled_product_version()
     {
-        Assert.Equal("1.1.2", VoiceBoothRelease.Version);
-        Assert.Equal("v1.1.2", VoiceBoothRelease.DisplayVersion);
+        Assert.Equal("1.2.0", VoiceBoothRelease.Version);
+        Assert.Equal("v1.2.0", VoiceBoothRelease.DisplayVersion);
         Assert.Equal(
-            "1.1.2",
+            "1.2.0",
             FileVersionInfo.GetVersionInfo(typeof(VoiceBoothRelease).Assembly.Location).ProductVersion);
     }
 

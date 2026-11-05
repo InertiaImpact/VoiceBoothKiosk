@@ -34,6 +34,7 @@ if (-not $SkipPublish) {
 }
 
 $recorderSource = Join-Path $PublishRoot "recorder"
+& (Join-Path $PSScriptRoot 'Assert-PatchedRuntime.ps1') -PublishRoot $PublishRoot
 $configSource = Join-Path $PublishRoot "config"
 $recorderExecutable = Join-Path $recorderSource "VoiceBoothKiosk.exe"
 $recorderAssembly = Join-Path $recorderSource "VoiceBoothKiosk.dll"
@@ -196,6 +197,20 @@ SourceFiles0=$sourceDirectory
         "{0}  {1}" -f $hash.Hash.ToLowerInvariant(), [IO.Path]::GetFileName($file)
     }
     Set-Content -LiteralPath $hashPath -Value $hashLines -Encoding ASCII
+
+    # Endpoint protection or other filesystem agents can remove an output shortly
+    # after the initial copy. Do not report a successful release in that case.
+    Start-Sleep -Seconds 8
+    foreach ($file in @($setupPath, $bundleZip)) {
+        if (-not (Test-Path -LiteralPath $file -PathType Leaf)) {
+            throw "The generated installer disappeared after creation: $file. Check endpoint protection and filesystem activity."
+        }
+        $verifiedHash = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
+        $expectedLine = "$verifiedHash  $([IO.Path]::GetFileName($file))"
+        if ($hashLines -cnotcontains $expectedLine) {
+            throw "The installer changed after creation: $file"
+        }
+    }
 
     Write-Host "Setup EXE: $setupPath"
     Write-Host "Scripted bundle: $bundleZip"

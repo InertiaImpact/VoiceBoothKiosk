@@ -78,6 +78,8 @@ try {
         -p:PublishTrimmed=false
     if ($LASTEXITCODE -ne 0) { throw "Configuration-tool publish failed." }
 
+    & (Join-Path $PSScriptRoot 'Assert-PatchedRuntime.ps1') -PublishRoot $stagingRoot
+
     # Publish into a fresh sibling tree, then promote it only when both applications are
     # complete. This prevents stale DLLs from an older release surviving a failed publish.
     $previousRoot = "$OutputRoot.previous-" + [Guid]::NewGuid().ToString("N")
